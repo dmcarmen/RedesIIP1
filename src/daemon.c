@@ -1,17 +1,16 @@
 #include "daemon.h"
 
-void daemon(void){
+void daemon_ini(void){
   pid_t pid;
 
   pid = fork();
   if (pid < 0) exit(EXIT_FAILURE);
   if (pid > 0) exit(EXIT_SUCCESS);
 
-  unmask(0);
+  umask(0);
   setlogmask(LOG_UPTO(LOG_INFO));
   openlog("Server system messages:",LOG_CONS|LOG_PID|LOG_NDELAY,LOG_LOCAL3);
   syslog(LOG_ERR,"Initiating new server.");
-
   if (setsid()<0) {
     syslog(LOG_ERR,"Error creating a new SID for the child pro cess.");
     exit(EXIT_FAILURE);
@@ -28,4 +27,10 @@ void daemon(void){
   close(STDOUT_FILENO);
   close(STDERR_FILENO);
   return;
+}
+
+
+int main(int argc, char const *argv[]) {
+  daemon_ini();
+  return 0;
 }
