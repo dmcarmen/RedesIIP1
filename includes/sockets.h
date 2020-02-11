@@ -1,3 +1,6 @@
+#ifndef SOCKETS_H
+#define SOCKETS_H
+
 //gcc -Wextra -Wall -g -o bin/main -I includes/ tests/test_sockets.c srclib/sockets.c
 //curl http://localhost:8080/
 #include <sys/socket.h>
@@ -15,5 +18,5 @@
 
 int socket_server_ini();
 void socket_accept();
-int socket_send();
-int socket_recv();
+
+#endif
