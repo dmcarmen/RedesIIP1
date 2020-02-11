@@ -45,6 +45,7 @@ void socket_accept(int sockval)
 {
   int connval, len;
   struct sockaddr addr;
+  //char *hello = "Hello from server";
 
   len = sizeof(addr);
   if ((connval = accept(sockval, (struct sockaddr *)&addr, (socklen_t*)&len)) < 0){
@@ -53,6 +54,6 @@ void socket_accept(int sockval)
   }
   syslog (LOG_INFO, "Server accepted the client");
   //launch_service(connval);
+  //send(connval , hello , strlen(hello) , 0);
   //wait_finished_services();
-  close(sockval);
 }
