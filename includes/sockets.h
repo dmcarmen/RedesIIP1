@@ -17,6 +17,6 @@
 #define MAX_CONNECTIONS 2
 
 int socket_server_ini();
-void socket_accept();
+int socket_accept(int sockval);
 
 #endif
