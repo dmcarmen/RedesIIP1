@@ -5,12 +5,14 @@ void * thread_accept(void * pool){
   pool_thread *p=(pool_thread *)pool;
   int connval;
 
-  //while(1){
+  while(1){
     connval = socket_accept(p->sockval);
     if(connval == -1) pthread_exit(NULL);
     send(connval , hello , strlen(hello) , 0);
+    sleep(1);
+    close(connval);
     //wait_finished_services();
-  //}
+  }
   pthread_exit(NULL);
 }
 
@@ -67,6 +69,7 @@ void pool_free(pool_thread * pool) {
     pthread_join(pool->threads[i],NULL);
   }
 
+  close(pool->sockval);
   free(pool->threads);
   free(pool);
 }
