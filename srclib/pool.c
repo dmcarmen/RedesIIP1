@@ -6,17 +6,8 @@ void * thread_accept(void * pool){
   int connval;
 
   //while(1){
-    if(pthread_mutex_lock(&(p->shared_mutex))!=0){
-      syslog(LOG_ERR,"Error in mutex");
-      pthread_exit(NULL);
-    }
     connval = socket_accept(p->sockval);
-    p->num_working++;
-    if(pthread_mutex_unlock(&(p->shared_mutex))!=0){
-      syslog(LOG_ERR,"Error in mutex");
-      pthread_exit(NULL);
-    }
-
+    if(connval == -1) pthread_exit(NULL);
     send(connval , hello , strlen(hello) , 0);
     //wait_finished_services();
   //}
@@ -34,7 +25,6 @@ pool_thread * pool_create(int sockval){
   }
 
   pool->num_threads = NUM_THREADS;
-  pool->num_working = 0;
   pool->stop = 0;
   pool->sockval = sockval;
   if(pthread_mutex_init(&pool->shared_mutex, NULL)!=0){
@@ -68,6 +58,10 @@ void pool_free(pool_thread * pool) {
 
   //TODO pensar
   pool->stop = 1;
+
+  for(i=0; i<pool->num_threads; i++){
+    pthread_kill(pool->threads[i],SIGUSR1);
+  }
 
   for(i=0; i<pool->num_threads; i++){
     pthread_join(pool->threads[i],NULL);

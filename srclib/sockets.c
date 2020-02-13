@@ -22,6 +22,16 @@ int socket_server_ini()
   addr.sin_addr.s_addr = htonl(INADDR_ANY); /* Accept all adresses */
   bzero((void *) &(addr.sin_zero), 8);
 
+  /*int yes = 1;
+  if (setsockopt(sockval, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(yes)) < 0) {
+    perror("setsockopt");
+    exit(EXIT_FAILURE);
+  }
+  if (setsockopt(sockval, SOL_SOCKET, SO_REUSEPORT, (const char*)&yes, sizeof(yes)) < 0){
+    perror("setsockopt(SO_REUSEPORT) failed");
+    exit(EXIT_FAILURE);
+  }*/
+
   /* Se liga el puerto al socket */
   syslog (LOG_INFO, "Binding socket");
   if (bind(sockval, (struct sockaddr *)&addr, sizeof(addr)) < 0){
@@ -47,9 +57,13 @@ int socket_accept(int sockval)
   struct sockaddr addr;
 
   len = sizeof(addr);
-  if ((connval = accept(sockval, (struct sockaddr *)&addr, (socklen_t*)&len)) < 0){
-    syslog(LOG_ERR, "Error accepting connection");
-    exit(EXIT_FAILURE);
+  connval = accept(sockval, (struct sockaddr *)&addr, (socklen_t*)&len);
+  if(connval == -1){
+      if(errno == EINTR){
+        return connval;
+      }
+      syslog(LOG_ERR, "Error accepting connection");
+      exit(EXIT_FAILURE);
   }
   syslog (LOG_INFO, "Server accepted the client");
   return connval;
