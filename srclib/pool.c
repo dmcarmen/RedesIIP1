@@ -25,7 +25,6 @@ void * thread_accept(void * pool){
 
 pool_thread * pool_create(int sockval){
   pool_thread *pool;
-  pthread_attr_t attr;
   int i;
 
   pool = (pool_thread *) malloc (sizeof(pool_thread));
@@ -52,16 +51,15 @@ pool_thread * pool_create(int sockval){
   }
   pool->work_function = thread_accept;
 
-  //TODO hay que hacer algo con los hilos creados si hay error??
+  //TODO hay que hacer algo con los hilos creados si hay error
   for(i=0; i<pool->num_threads; i++){
-    if(pthread_create(&(pool->threads[i]),&attr, pool->work_function,(void *) pool)!=0){
+    if(pthread_create(&(pool->threads[i]),NULL, pool->work_function,(void *) pool)!=0){
       free(pool->threads);
       free(pool);
       syslog(LOG_ERR, "Error creating thread");
       exit(EXIT_FAILURE);
     }
   }
-
   return pool;
 }
 
@@ -72,7 +70,7 @@ void pool_free(pool_thread * pool) {
   pool->stop = 1;
 
   for(i=0; i<pool->num_threads; i++){
-    pthread_cancel(pool->threads[i]);
+    pthread_join(pool->threads[i],NULL);
   }
 
   free(pool->threads);

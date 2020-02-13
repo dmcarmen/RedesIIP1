@@ -7,7 +7,7 @@
 #include <string.h>
 #include "sockets.h"
 
-#define NUM_THREADS 10
+#define NUM_THREADS 2
 
 typedef struct pool_thread pool_thread;
 
