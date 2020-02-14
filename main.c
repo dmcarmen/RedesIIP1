@@ -21,5 +21,6 @@ int main(int argc, char const *argv[]) {
   while(flag);
   
   pool_free(pool);
+  close(sockval);
   return 0;
 }

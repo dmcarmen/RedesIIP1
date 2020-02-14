@@ -69,7 +69,6 @@ void pool_free(pool_thread * pool) {
     pthread_join(pool->threads[i],NULL);
   }
 
-  close(pool->sockval);
   free(pool->threads);
   free(pool);
 }
