@@ -11,4 +11,4 @@ clean:
 	rm -rf *.o *.dot $(EJS)
 
 main: $(LIBS)
-	$(CC) $(CFLAGS) main.c $(LIBS) -o bin/main -lpthread
+	$(CC) $(CFLAGS) main.c $(LIBS) -o bin/main -lpthread -lconfuse
