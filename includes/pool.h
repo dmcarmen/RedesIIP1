@@ -6,6 +6,7 @@
 #include <pthread.h>
 #include <string.h>
 #include "sockets.h"
+#include "http.h"
 #include <signal.h>
 
 #define NUM_THREADS 2

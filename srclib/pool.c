@@ -9,6 +9,7 @@ void * thread_accept(void * pool){
     connval = socket_accept(p->sockval);
     if(connval == -1) pthread_exit(NULL);
     send(connval , hello , strlen(hello) , 0);
+    procesarPeticiones(connval);
     sleep(1);
     close(connval);
     //wait_finished_services();
