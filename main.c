@@ -29,18 +29,14 @@ int main(int argc, char const *argv[]) {
   };
 
   cfg = cfg_init(opts, 0);
-  if(cfg_parse(cfg, "../server.conf") == CFG_PARSE_ERROR)
+  if(cfg_parse(cfg, "server.conf") == CFG_PARSE_ERROR) //cuidado dond corres donde esta
   {
     syslog(LOG_ERR, "Error parsing server.conf");
     return 1;
   }
   cfg_free(cfg);
-  /*
-  printf("server_root: %s\n", server_root); //
-  printf("server_signature: %s\n", server_signature); //
-  printf("max_clients: %ld\n", max_clients);
-  printf("listen_port: %ld\n", listen_port);
-  fflush(stdout);*/
+  syslog(LOG_INFO, "Server_root: %s, server_signature: %s, max_clients: %ld, listen_ports: %ld",
+		  server_root, server_signature, max_clients, listen_port); //
 
   act.sa_handler = manejador;
   sigemptyset(&(act.sa_mask));
