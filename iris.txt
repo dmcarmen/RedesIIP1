@@ -1,0 +1,32 @@
+request is 78 bytes long
+method is GET
+path is /
+HTTP version is 1.1
+headers:
+Host: localhost:8080
+User-Agent: curl/7.58.0
+Accept: */*
+
+request is 147 bytes long
+method is POST
+path is /
+HTTP version is 1.1
+headers:
+Host: localhost:8080
+User-Agent: curl/7.58.0
+Accept: */*
+Content-Length: 4
+Content-Type: application/x-www-form-urlencoded
+
+request is 84 bytes long
+method is GET
+path is /main.c
+HTTP version is 1.1
+headers:
+Host: localhost:8080
+User-Agent: curl/7.58.0
+Accept: */*
+
+
+Para el formato de tiempo
+https://stackoverflow.com/questions/10917491/building-a-date-string-in-c

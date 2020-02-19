@@ -12,6 +12,13 @@ struct extension {
   char * tipo;
 };
 
-void procesarPeticiones(int connval);
+typedef struct metodo metodo;
+
+struct metodo {
+	char *name;
+	void (*f)(); //meter parametros
+};
+
+int procesarPeticiones(int connval);
 
 #endif
