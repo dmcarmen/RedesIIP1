@@ -118,42 +118,99 @@ int procesarPeticiones(int connval){
   }
 }
 
+char * FechaActual(){
+  time_t now;
+  char s[100];
+  char *date;
+
+  now = time(NULL);
+  strftime(s, sizeof(s)-1, "%a, %d %b %Y %H:%M:%S %Z", &gmtime(&now));
+
+  date = (char *) malloc (sizeof(s));
+  if(date==NULL) return NULL;
+
+  strcpy(date, s);
+  return date;
+}
+
+char * FechaModificado(char * path){
+  struct stat buf;
+  char s[100];
+  char *date;
+
+  if( stat(path,&buf) == -1) return NULL;
+  strftime(s, sizeof(s)-1, "%a, %d %b %Y %H:%M:%S %Z", &gmtime(&buf.st_mtime));
+
+  date = (char *) malloc (sizeof(s));
+  if(date==NULL) return NULL;
+
+  strcpy(date, s);
+  return date;
+}
+
 //TODO enviar, hallar fecha modificado, fecha actual
-void GETProcesa(int connval, char *path, char *ext){
+void GETProcesa(int connval, char *path, char *ext) {
   int fd;
   char *date, *server, *modified, buf[4096], *res;
   int len, count;
   struct stat file_stat;
 
-  //Calculamos la fecha actual
+  const char *buf, *buf_end, **msg;
+  int minor_version=1, status, *ret;
+  size_t msg_len, num_headers, max_headers=10; //TODO what
+  struct phr_header *headers;
 
+  //Calculamos la fecha actual
+  date = FechaActual();
+  if ( date == NULL ) {
+    //error
+    return;
+  }
 
   //Calculamos la última fecha en la que fue modificado
-
+  modified = FechaModificado(path);
+  if ( modified == NULL) {
+    //error
+    free(date);
+    return;
+  }
 
   //Abrimos fichero
   fd = open(path, O_RDONLY);
   if(fd==-1){
     //error abriendo el fichero
+    free(date);
+    free(modified);
+    return;
   }
 
   //Calculamos su tam
   if(fstat(fd, &file_stat) == -1) {
     //Error obteniendo info
+    free(date);
+    free(modified);
+    return;
   }
 
   len=file_stat.st_size;
 
   //Enviamos el mensaje con el tamaño del fichero
-  res = phr_parse_response(const char *buf, const char *buf_end, int *minor_version, int *status, const char **msg,
-                                size_t *msg_len, struct phr_header *headers, size_t *num_headers, size_t max_headers, int *ret);
-  send(connval, buf, strlen(buf), 0);
+  status=200;
+  *msg="OK";
+  msg_len = sizeof(*msg);
+  num_headers=5;
+  headers[0].name="";
+  headers[0].name_len=sizeof(headers[0].name); //esto es un coñazo??
+  res = parse_response(const char *buf, const char *buf_end, &minor_version, &status, msg, &msg_len, headers, &num_headers, max_headers, ret);
+  send(connval, res, strlen(res), 0);
 
   //Enviamos los datos del fichero
-  while( count = read(fd,buf,sizeof(buf)) > 0 ){
-    send(connval,buf,count,0);
+  while( count = read(fd,res,sizeof(res)) > 0 ){
+    send(connval,res,count,0);
   }
 
+  free(date);
+  free(modified);
   close(fd);
 }
 
