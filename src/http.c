@@ -27,9 +27,9 @@ extension extensiones[] = {
   {"pdf","application/pdf"}
 };
 
-void GETProcesa();
-void POSTProcesa();
-void OPTIONSProcesa();
+void GETProcesa(int connval, char *path, extension *ext);
+void POSTProcesa(int connval);
+void OPTIONSProcesa(int connval);
 
 metodo metodos[] = {
   {"GET", GETProcesa},
@@ -89,7 +89,7 @@ int procesarPeticiones(int connval){
     }
     //Método no soportado
     if(n_met == NUM_METODOS) {
-      //res = phr_parse_response();
+
       //send(connval,res,len(res),0);
       continue;
     }
@@ -149,36 +149,35 @@ char * FechaModificado(char * path){
 }
 
 //TODO enviar, hallar fecha modificado, fecha actual
-void GETProcesa(int connval, char *path, char *ext) {
+void GETProcesa(int connval, char *path, extension *ext) {
   int fd;
-  char *date, *server, *modified, buf[4096], *res;
+  char *date, *server, *modified, *res;
   int len, count;
   struct stat file_stat;
-
-  const char *buf, *buf_end, **msg;
-  int minor_version=1, status, *ret;
-  size_t msg_len, num_headers, max_headers=10; //TODO what
-  struct phr_header *headers;
+  char * reply = "HTTP/1.1 %d %s\nDate: %s\nServer: %s\nLast-Modified: %s\nContent-Length: %d\nContent-Type: %s\nConnection: keep-alive\r\n\r\n";
 
   //Calculamos la fecha actual
   date = FechaActual();
   if ( date == NULL ) {
-    //error
+    enviarError(connval,ERROR_SERVIDOR);
     return;
   }
 
   //Calculamos la última fecha en la que fue modificado
   modified = FechaModificado(path);
   if ( modified == NULL) {
-    //error
+    enviarError(connval,ERROR_SERVIDOR);
     free(date);
     return;
   }
 
+  //TODO server
+  server="";
+
   //Abrimos fichero
   fd = open(path, O_RDONLY);
   if(fd==-1){
-    //error abriendo el fichero
+    enviarError(connval,ERROR_SERVIDOR);
     free(date);
     free(modified);
     return;
@@ -195,13 +194,7 @@ void GETProcesa(int connval, char *path, char *ext) {
   len=file_stat.st_size;
 
   //Enviamos el mensaje con el tamaño del fichero
-  status=200;
-  *msg="OK";
-  msg_len = sizeof(*msg);
-  num_headers=5;
-  headers[0].name="";
-  headers[0].name_len=sizeof(headers[0].name); //esto es un coñazo??
-  res = parse_response(const char *buf, const char *buf_end, &minor_version, &status, msg, &msg_len, headers, &num_headers, max_headers, ret);
+  sprintf(res,reply,date,server,modified,ext->tipo,len);
   send(connval, res, strlen(res), 0);
 
   //Enviamos los datos del fichero
@@ -214,10 +207,25 @@ void GETProcesa(int connval, char *path, char *ext) {
   close(fd);
 }
 
-void POSTProcesa(){
+void POSTProcesa(int connval){
 
 }
 
-void OPTIONSProcesa(){
+void OPTIONSProcesa(int connval){
+   char *date, *server, *res;
 
+  //Calculamos la fecha actual
+  date = FechaActual();
+  if ( date == NULL ) {
+    enviarError(connval,ERROR_SERVIDOR);
+    return;
+  }
+
+  //TODO server
+  server="";
+
+  //Enviamos el mensaje con el tamaño del fichero
+  sprintf(res,"HTTP/1.1 200 OK\nDate: %s\nServer: %s\nAllow: GET, POST, OPTIONS\nConnection: keep-alive\r\n\r\n",date,server);
+  send(connval, res, strlen(res), 0);
+  free(date);
 }
