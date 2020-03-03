@@ -37,7 +37,30 @@ metodo metodos[] = {
   {"OPTIONS", OPTIONSProcesa}
 };
 
-/*TODO errores, respuestas, metodos, cuando parar de procesar peticiones*/
+void enviarError(int connval, int error) {
+  char *res, *date;
+
+  //TODO comprobar esto, date y server??
+  switch(error){
+    case BAD_REQUEST:
+    sprintf(res,"HTTP/1.1 400 Bad Request\nDate: %s\nServer: %s\nConnection: keep-alive\r\n\r\n",date,server);
+      break;
+    case NOT_FOUND:
+      sprintf(res,"HTTP/1.1 400 Not Found\nDate: %s\nServer: %s\nConnection: keep-alive\r\n\r\n",date,server);
+      break;
+    case INTERNAL_SERVER:
+      sprintf(res,"HTTP/1.1 400 Internal Server Error\nDate: %s\nServer: %s\nConnection: keep-alive\r\n\r\n",date,server);
+      break;
+    case NOT_IMPLEMENTED:
+      printf(res,"HTTP/1.1 400 Not Implemented\nDate: %s\nServer: %s\nConnection: keep-alive\r\n\r\n",date,server);
+      break;
+    default:
+      break; 
+  }
+  send(connval,res,0);
+}
+
+/*TODO metodos, cuando parar de procesar peticiones*/
 int procesarPeticiones(int connval){
   char buf[4096], *method, *path;
   int pret, minor_version;
@@ -67,6 +90,7 @@ int procesarPeticiones(int connval){
 
     if (pret < 0) {
       syslog(LOG_ERR, "Error parse request");
+      enviarError(connval, INTERNAL_SERVER);
       return -1;
     }
 
@@ -89,15 +113,13 @@ int procesarPeticiones(int connval){
     }
     //Método no soportado
     if(n_met == NUM_METODOS) {
-
-      //send(connval,res,len(res),0);
+      enviarError(connval, NOT_IMPLEMENTED);
       continue;
     }
 
     //Comprobamos si el recurso existe
     if(access(path, F_OK ) == -1) {
-      //res = phr_parse_response();
-      //send(connval,res,len(res),0);
+      enviarError(connval, NOT_FOUND);
       continue;
     }
 
@@ -110,12 +132,11 @@ int procesarPeticiones(int connval){
 
     //Extensión incorrecta
     if(n_ext == NUM_EXTENSIONES) {
-      //res = phr_parse_response();
-      //send(connval,res,len(res),0);
+      enviarError(connval, BAD_REQUEST);
       continue;
     }
-
   }
+
 }
 
 char * FechaActual(){
@@ -148,25 +169,23 @@ char * FechaModificado(char * path){
   return date;
 }
 
-//TODO enviar, hallar fecha modificado, fecha actual
 void GETProcesa(int connval, char *path, extension *ext) {
   int fd;
   char *date, *server, *modified, *res;
   int len, count;
   struct stat file_stat;
-  char * reply = "HTTP/1.1 %d %s\nDate: %s\nServer: %s\nLast-Modified: %s\nContent-Length: %d\nContent-Type: %s\nConnection: keep-alive\r\n\r\n";
 
   //Calculamos la fecha actual
   date = FechaActual();
   if ( date == NULL ) {
-    enviarError(connval,ERROR_SERVIDOR);
+    enviarError(connval,INTERNAL_SERVER);
     return;
   }
 
   //Calculamos la última fecha en la que fue modificado
   modified = FechaModificado(path);
   if ( modified == NULL) {
-    enviarError(connval,ERROR_SERVIDOR);
+    enviarError(connval,INTERNAL_SERVER);
     free(date);
     return;
   }
@@ -177,7 +196,7 @@ void GETProcesa(int connval, char *path, extension *ext) {
   //Abrimos fichero
   fd = open(path, O_RDONLY);
   if(fd==-1){
-    enviarError(connval,ERROR_SERVIDOR);
+    enviarError(connval,INTERNAL_SERVER);
     free(date);
     free(modified);
     return;
@@ -194,7 +213,7 @@ void GETProcesa(int connval, char *path, extension *ext) {
   len=file_stat.st_size;
 
   //Enviamos el mensaje con el tamaño del fichero
-  sprintf(res,reply,date,server,modified,ext->tipo,len);
+  sprintf(res,"HTTP/1.1 %d %s\nDate: %s\nServer: %s\nLast-Modified: %s\nContent-Length: %d\nContent-Type: %s\nConnection: keep-alive\r\n\r\n",date,server,modified,ext->tipo,len);
   send(connval, res, strlen(res), 0);
 
   //Enviamos los datos del fichero
@@ -207,7 +226,13 @@ void GETProcesa(int connval, char *path, extension *ext) {
   close(fd);
 }
 
-void POSTProcesa(int connval){
+void POSTProcesa(int connval, char *path, extension *ext){
+
+  if(strcmp(ext->ext,"py") !=0 ){
+    enviarError(connval, BAD_REQUEST);
+    return;
+  }
+
 
 }
 
@@ -217,7 +242,7 @@ void OPTIONSProcesa(int connval){
   //Calculamos la fecha actual
   date = FechaActual();
   if ( date == NULL ) {
-    enviarError(connval,ERROR_SERVIDOR);
+    enviarError(connval,INTERNAL_SERVER);
     return;
   }
 
