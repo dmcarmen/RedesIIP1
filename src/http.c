@@ -27,9 +27,9 @@ extension extensiones[] = {
   {"pdf","application/pdf"}
 };
 
-void GETProcesa(int connval, char *path, extension *ext);
-void POSTProcesa(int connval);
-void OPTIONSProcesa(int connval);
+void GETProcesa(int connval, char *path, extension *ext, char *cuerpo);
+void POSTProcesa(int connval, char *path, extension *ext, char *cuerpo);
+void OPTIONSProcesa(int connval, char *path, extension *ext, char *cuerpo);
 
 metodo metodos[] = {
   {"GET", GETProcesa},
@@ -38,30 +38,39 @@ metodo metodos[] = {
 };
 
 void enviarError(int connval, int error) {
-  char *res, *date;
+  char *res, *date, *server;
 
-  //TODO comprobar esto, date y server??
+  date = FechaActual();
+  if ( date == NULL ) {
+    return;
+  }
+
+  //TODO server??
+  server="";
+
   switch(error){
     case BAD_REQUEST:
     sprintf(res,"HTTP/1.1 400 Bad Request\nDate: %s\nServer: %s\nConnection: keep-alive\r\n\r\n",date,server);
       break;
     case NOT_FOUND:
-      sprintf(res,"HTTP/1.1 400 Not Found\nDate: %s\nServer: %s\nConnection: keep-alive\r\n\r\n",date,server);
+      sprintf(res,"HTTP/1.1 404 Not Found\nDate: %s\nServer: %s\nConnection: keep-alive\r\n\r\n",date,server);
       break;
     case INTERNAL_SERVER:
-      sprintf(res,"HTTP/1.1 400 Internal Server Error\nDate: %s\nServer: %s\nConnection: keep-alive\r\n\r\n",date,server);
+      sprintf(res,"HTTP/1.1 500 Internal Server Error\nDate: %s\nServer: %s\nConnection: keep-alive\r\n\r\n",date,server);
       break;
     case NOT_IMPLEMENTED:
-      printf(res,"HTTP/1.1 400 Not Implemented\nDate: %s\nServer: %s\nConnection: keep-alive\r\n\r\n",date,server);
+      printf(res,"HTTP/1.1 501 Not Implemented\nDate: %s\nServer: %s\nConnection: keep-alive\r\n\r\n",date,server);
       break;
     default:
-      break; 
+      break;
   }
+
   send(connval,res,0);
+  free(date);
 }
 
-/*TODO metodos, cuando parar de procesar peticiones*/
-int procesarPeticiones(int connval){
+/*TODO cuando parar de procesar peticiones, cuerpo*/
+void procesarPeticiones(int connval){
   char buf[4096], *method, *path;
   int pret, minor_version;
   struct phr_header headers[100];
@@ -74,40 +83,27 @@ int procesarPeticiones(int connval){
     //TODO Esto esta distinto, cuidao
     rret = recv(connval,buf + buflen, sizeof(buf) - buflen, 0);
     if(rret == -1) {
-      if(errno == EINTR){
-        return rret;
-      }
       syslog(LOG_ERR, "Error recv");
-      exit(EXIT_FAILURE);
+      return;
     }
 
     prevbuflen = buflen;
     buflen += rret;
 
     num_headers = sizeof(headers) / sizeof(headers[0]);
+    //TODO bytes leidos == pret, para sacar el cuerpo buf + pret
     pret = phr_parse_request((const char *)buf, buflen, (const char **)&method, &method_len,(const char **) &path, &path_len,
                              &minor_version, headers, &num_headers, prevbuflen);
 
     if (pret < 0) {
       syslog(LOG_ERR, "Error parse request");
       enviarError(connval, INTERNAL_SERVER);
-      return -1;
+      continue;
     }
-
-    /*printf("request is %d bytes long\n", pret);
-    printf("method is %.*s\n", (int)method_len, method);
-    printf("path is %.*s\n", (int)path_len, path);
-    printf("HTTP version is 1.%d\n", minor_version);
-    printf("headers:\n");
-    for (i = 0; i != num_headers; ++i) {
-        printf("%.*s: %.*s\n", (int)headers[i].name_len, headers[i].name,
-               (int)headers[i].value_len, headers[i].value);
-    }*/
-
 
     //Comprobamos que se da soporte el método
     for(n_met=0;n_met<NUM_METODOS;n_met++){
-      if(strcmp(metodos[n_met].name,method) != 0) {
+      if(strcmp(metodos[n_met].name,method) == 0) {
         break;
       }
     }
@@ -115,6 +111,11 @@ int procesarPeticiones(int connval){
     if(n_met == NUM_METODOS) {
       enviarError(connval, NOT_IMPLEMENTED);
       continue;
+    }
+
+    if(strcmp(path,"/") == 0 || path == NULL) {
+      path="/index.html";
+      path_len=strlen(path);
     }
 
     //Comprobamos si el recurso existe
@@ -129,12 +130,13 @@ int procesarPeticiones(int connval){
         break;
       }
     }
-
     //Extensión incorrecta
     if(n_ext == NUM_EXTENSIONES) {
       enviarError(connval, BAD_REQUEST);
       continue;
     }
+
+    funcion_procesa(connval,metodos[n_met].funcion,extenciones[n_ext], cuerpo);
   }
 
 }
@@ -159,7 +161,7 @@ char * FechaModificado(char * path){
   char s[100];
   char *date;
 
-  if( stat(path,&buf) == -1) return NULL;
+  if(stat(path,&buf) == -1) return NULL;
   strftime(s, sizeof(s)-1, "%a, %d %b %Y %H:%M:%S %Z", &gmtime(&buf.st_mtime));
 
   date = (char *) malloc (sizeof(s));
@@ -169,7 +171,7 @@ char * FechaModificado(char * path){
   return date;
 }
 
-void GETProcesa(int connval, char *path, extension *ext) {
+void GETProcesa(int connval, char *path, extension *ext, char *cuerpo) {
   int fd;
   char *date, *server, *modified, *res;
   int len, count;
@@ -185,7 +187,7 @@ void GETProcesa(int connval, char *path, extension *ext) {
   //Calculamos la última fecha en la que fue modificado
   modified = FechaModificado(path);
   if ( modified == NULL) {
-    enviarError(connval,INTERNAL_SERVER);
+    enviarError(connval,BAD_REQUEST); //TODO check si badrequest o internalerror
     free(date);
     return;
   }
@@ -213,7 +215,7 @@ void GETProcesa(int connval, char *path, extension *ext) {
   len=file_stat.st_size;
 
   //Enviamos el mensaje con el tamaño del fichero
-  sprintf(res,"HTTP/1.1 %d %s\nDate: %s\nServer: %s\nLast-Modified: %s\nContent-Length: %d\nContent-Type: %s\nConnection: keep-alive\r\n\r\n",date,server,modified,ext->tipo,len);
+  sprintf(res,"HTTP/1.1 200 OK\nDate: %s\nServer: %s\nLast-Modified: %s\nContent-Length: %d\nContent-Type: %s\nConnection: keep-alive\r\n\r\n",date,server,modified,ext->tipo,len);
   send(connval, res, strlen(res), 0);
 
   //Enviamos los datos del fichero
@@ -226,7 +228,7 @@ void GETProcesa(int connval, char *path, extension *ext) {
   close(fd);
 }
 
-void POSTProcesa(int connval, char *path, extension *ext){
+void POSTProcesa(int connval, char *path, extension *ext, char *cuerpo){
 
   if(strcmp(ext->ext,"py") !=0 ){
     enviarError(connval, BAD_REQUEST);
@@ -236,7 +238,7 @@ void POSTProcesa(int connval, char *path, extension *ext){
 
 }
 
-void OPTIONSProcesa(int connval){
+void OPTIONSProcesa(int connval, char *path, extension *ext, char *cuerpo){
    char *date, *server, *res;
 
   //Calculamos la fecha actual
