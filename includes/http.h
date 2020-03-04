@@ -16,9 +16,9 @@ typedef struct metodo metodo;
 
 struct metodo {
 	char *name;
-	void (*f)(); //meter parametros
+	void (*funcion)(); //meter parametros
 };
 
-int procesarPeticiones(int connval);
+void procesarPeticiones(int connval);
 
 #endif

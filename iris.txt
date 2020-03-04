@@ -27,6 +27,16 @@ Host: localhost:8080
 User-Agent: curl/7.58.0
 Accept: */*
 
+/*printf("request is %d bytes long\n", pret);
+printf("method is %.*s\n", (int)method_len, method);
+printf("path is %.*s\n", (int)path_len, path);
+printf("HTTP version is 1.%d\n", minor_version);
+printf("headers:\n");
+for (i = 0; i != num_headers; ++i) {
+    printf("%.*s: %.*s\n", (int)headers[i].name_len, headers[i].name,
+           (int)headers[i].value_len, headers[i].value);
+}*/
+
 
 Para el formato de tiempo
 https://stackoverflow.com/questions/10917491/building-a-date-string-in-c
