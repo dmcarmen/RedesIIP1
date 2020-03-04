@@ -55,7 +55,7 @@ void enviarError(int connval, int error) {
       printf(res,"HTTP/1.1 400 Not Implemented\nDate: %s\nServer: %s\nConnection: keep-alive\r\n\r\n",date,server);
       break;
     default:
-      break; 
+      break;
   }
   send(connval,res,0);
 }
@@ -226,13 +226,46 @@ void GETProcesa(int connval, char *path, extension *ext) {
   close(fd);
 }
 
-void POSTProcesa(int connval, char *path, extension *ext){
+void POSTProcesa(int connval, char *path, extension *ext, char *cuerpo){ //buf+num
+  char command[100];
 
   if(strcmp(ext->ext,"py") !=0 ){
     enviarError(connval, BAD_REQUEST);
     return;
   }
 
+  sprintf(command, "echo \"%s\" | python3 %s", &cuerpo, &path)
+
+  var1=manolo&var2=paco$var3=men
+
+
+}
+
+char* cleanCuerpo(char *cuerpo)
+{
+  char *limpio;
+  char *ret1;
+  char *ret2;
+  int flag = 1;
+
+  if(!(limpio = (char *)malloc(sizeof(char) * (strlen(cuerpo) + 1)))
+    return NULL;
+  ret = cuerpo;
+  while(flag)
+  {
+    ret = strchr(ret, '=');
+    ret++;
+    ret2 = strchr(ret, '&');
+    if(ret2 == NULL)
+      ret2 = strchr(ret, 0);
+      if(ret2 != NULL)
+        flag = 0;
+      else
+        return NULL;
+    
+
+    strcpy(limpio, ret);
+  }
 
 }
 
