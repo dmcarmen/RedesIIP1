@@ -229,46 +229,80 @@ void GETProcesa(int connval, char *path, extension *ext, char *cuerpo) {
 }
 
 void POSTProcesa(int connval, char *path, extension *ext, char *cuerpo){ //buf+num
-  char command[100];
+  char command[100], answer[100]; //TODO 100?
+  char *vars;
+  FILE *fp;
+  char py[] = "python3"; //TODO i guess constants
+  char php[] = "php -f";
 
-  if(strcmp(ext->ext,"py") !=0 ){
+  vars = cleanVars(cuerpo); //TODO remember free vars
+  if(!vars){
     enviarError(connval, BAD_REQUEST);
     return;
   }
 
-  sprintf(command, "echo \"%s\" | python3 %s", &cuerpo, &path)
+  if(strcmp(ext->ext,"py") ==0)
+    sprintf(command, "echo \"%s\" | %s %s", &vars, &py, &path);
+  else if(strcmp(ext->ext,"php") ==0)
+    sprintf(command, "echo \"%s\" | %s %s", &vars, &php, &path);
+  else{
+    free(vars);
+    enviarError(connval, BAD_REQUEST);
+    return;
+  }
 
-  var1=manolo&var2=paco$var3=men
-
-
+  fp = popen(command, 'r');
+  if(!fp){
+    free(vars);
+    enviarError(connval, INTERNAL_SERVER);
+    return;
+  }
+  fgets(answer, 100, fp);
+  if (pclose(pf) != 0){
+    free(vars);
+    enviarError(connval, INTERNAL_SERVER);
+    return;
+  }
+  free(vars);
 }
 
-char* cleanCuerpo(char *cuerpo)
+char* cleanVars(char *cuerpo)
 {
   char *limpio;
-  char *ret1;
-  char *ret2;
+  char *ret;
   int flag = 1;
 
   if(!(limpio = (char *)malloc(sizeof(char) * (strlen(cuerpo) + 1)))
     return NULL;
   ret = cuerpo;
+//var1=manolo&var2=paco&var3=men
   while(flag)
   {
-    ret = strchr(ret, '=');
+    //busca primer =
+    if(!(ret = strchr(ret, '=')){
+      free(limpio);
+      return NULL;
+    }
     ret++;
-    ret2 = strchr(ret, '&');
-    if(ret2 == NULL)
-      ret2 = strchr(ret, 0);
-      if(ret2 != NULL)
-        flag = 0;
-      else
-        return NULL;
-
-
-    strcpy(limpio, ret);
+    //guarda hasta encontrar & o fin de cadena
+    while (*ret != '&' || *ret != 0)
+    {
+      *limpio = *ret;
+      limpio++;
+      ret++;
+    }
+    limpio++;
+    //si es fin de cadena se va del bucle
+    if(*ret == 0)
+    {
+      flag = 0;
+      break;
+    }
+    *limpio = ' ';
+    limpio++;
   }
-
+  *limpio = 0;
+  return limpio;
 }
 
 void OPTIONSProcesa(int connval, char *path, extension *ext, char *cuerpo){
