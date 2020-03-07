@@ -4,6 +4,8 @@
 #define OK 200
 #define BAD_REQUEST 400
 #define NOT_FOUND 404
+#define INTERNAL_SERVER 500
+#define NOT_IMPLEMENTED 501
 
 typedef struct extension extension;
 

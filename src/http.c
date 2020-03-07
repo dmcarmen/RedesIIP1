@@ -8,7 +8,8 @@
 #include <errno.h>
 #include <string.h>
 #include <fcntl.h>
-
+#include <sys/stat.h>
+#include <time.h>
 
 #define NUM_EXTENSIONES 11
 #define NUM_METODOS 3
@@ -30,6 +31,8 @@ extension extensiones[] = {
 void GETProcesa(int connval, char *path, extension *ext, char *cuerpo);
 void POSTProcesa(int connval, char *path, extension *ext, char *cuerpo);
 void OPTIONSProcesa(int connval, char *path, extension *ext, char *cuerpo);
+char* cleanVars(char *cuerpo);
+char* FechaActual();
 
 metodo metodos[] = {
   {"GET", GETProcesa},
@@ -65,7 +68,7 @@ void enviarError(int connval, int error) {
       break;
   }
 
-  send(connval,res,0);
+  send(connval, res, strlen(res), 0);
   free(date);
 }
 
@@ -76,8 +79,8 @@ void procesarPeticiones(int connval){
   struct phr_header headers[100];
   size_t buflen = 0, prevbuflen = 0, method_len, path_len, num_headers;
   ssize_t rret;
-  int n_ext, n_met, i;
-  char *cadena, *res;
+  int n_ext, n_met;
+  char *cadena, *res, *cuerpo;
 
   while(1){
     //TODO Esto esta distinto, cuidao
@@ -100,10 +103,13 @@ void procesarPeticiones(int connval){
       enviarError(connval, INTERNAL_SERVER);
       continue;
     }
+    //Guardamos el cuerpo de la petición, que se encuetra en el buffer más los bytes leidos por phr_parse_request
+    if (pret > 1)
+      cuerpo = buf - pret;
 
     //Comprobamos que se da soporte el método
-    for(n_met=0;n_met<NUM_METODOS;n_met++){
-      if(strcmp(metodos[n_met].name,method) == 0) {
+    for(n_met=0; n_met<NUM_METODOS; n_met++){
+      if(strcmp(metodos[n_met].name, method) == 0) {
         break;
       }
     }
@@ -136,7 +142,7 @@ void procesarPeticiones(int connval){
       continue;
     }
 
-    funcion_procesa(connval,metodos[n_met].funcion,extenciones[n_ext], cuerpo);
+    funcion_procesa(connval, metodos[n_met].funcion, extensiones[n_ext], cuerpo);
   }
 
 }
@@ -147,7 +153,7 @@ char * FechaActual(){
   char *date;
 
   now = time(NULL);
-  strftime(s, sizeof(s)-1, "%a, %d %b %Y %H:%M:%S %Z", &gmtime(&now));
+  strftime(s, sizeof(s)-1, "%a, %d %b %Y %H:%M:%S %Z", gmtime(&now));
 
   date = (char *) malloc (sizeof(s));
   if(date==NULL) return NULL;
@@ -162,7 +168,7 @@ char * FechaModificado(char * path){
   char *date;
 
   if(stat(path,&buf) == -1) return NULL;
-  strftime(s, sizeof(s)-1, "%a, %d %b %Y %H:%M:%S %Z", &gmtime(&buf.st_mtime));
+  strftime(s, sizeof(s)-1, "%a, %d %b %Y %H:%M:%S %Z", gmtime(&buf.st_mtime));
 
   date = (char *) malloc (sizeof(s));
   if(date==NULL) return NULL;
@@ -215,11 +221,11 @@ void GETProcesa(int connval, char *path, extension *ext, char *cuerpo) {
   len=file_stat.st_size;
 
   //Enviamos el mensaje con el tamaño del fichero
-  sprintf(res,"HTTP/1.1 200 OK\nDate: %s\nServer: %s\nLast-Modified: %s\nContent-Length: %d\nContent-Type: %s\nConnection: keep-alive\r\n\r\n",date,server,modified,ext->tipo,len);
+  sprintf(res,"HTTP/1.1 200 OK\nDate: %s\nServer: %s\nLast-Modified: %s\nContent-Length: %d\nContent-Type: %s\nConnection: keep-alive\r\n\r\n", date, server, modified, len, ext->tipo);
   send(connval, res, strlen(res), 0);
 
   //Enviamos los datos del fichero
-  while( count = read(fd,res,sizeof(res)) > 0 ){
+  while((count = read(fd,res,sizeof(res))) > 0 ){
     send(connval,res,count,0);
   }
 
@@ -242,23 +248,23 @@ void POSTProcesa(int connval, char *path, extension *ext, char *cuerpo){ //buf+n
   }
 
   if(strcmp(ext->ext,"py") ==0)
-    sprintf(command, "echo \"%s\" | %s %s", &vars, &py, &path);
+    sprintf(command, "echo \"%s\" | %s %s", vars, py, path);
   else if(strcmp(ext->ext,"php") ==0)
-    sprintf(command, "echo \"%s\" | %s %s", &vars, &php, &path);
+    sprintf(command, "echo \"%s\" | %s %s", vars, php, path);
   else{
     free(vars);
     enviarError(connval, BAD_REQUEST);
     return;
   }
 
-  fp = popen(command, 'r');
+  fp = popen(command, "r");
   if(!fp){
     free(vars);
     enviarError(connval, INTERNAL_SERVER);
     return;
   }
   fgets(answer, 100, fp);
-  if (pclose(pf) != 0){
+  if (pclose(fp) != 0){
     free(vars);
     enviarError(connval, INTERNAL_SERVER);
     return;
@@ -272,14 +278,15 @@ char* cleanVars(char *cuerpo)
   char *ret;
   int flag = 1;
 
-  if(!(limpio = (char *)malloc(sizeof(char) * (strlen(cuerpo) + 1)))
+  limpio = (char *)malloc(sizeof(char) * (strlen(cuerpo) + 1));
+  if(!limpio)
     return NULL;
   ret = cuerpo;
 //var1=manolo&var2=paco&var3=men
   while(flag)
   {
     //busca primer =
-    if(!(ret = strchr(ret, '=')){
+    if(!(ret = strchr(ret, '='))){
       free(limpio);
       return NULL;
     }
