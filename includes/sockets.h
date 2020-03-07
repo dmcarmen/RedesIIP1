@@ -14,10 +14,7 @@
 #include <string.h>
 #include <errno.h>
 
-#define SERVER_PORT 8080
-#define MAX_CONNECTIONS 2
-
-int socket_server_ini();
+int socket_server_ini(int listen_port, int max_clients);
 int socket_accept(int sockval);
 
 #endif

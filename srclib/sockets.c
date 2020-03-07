@@ -4,7 +4,7 @@
 * Funcion que crea un socket TCP/IP, lo liga al puerto SERVER_PORT y lo
 * deja escuchando.
 */
-int socket_server_ini()
+int socket_server_ini(int listen_port, int max_clients)
 {
   int sockval;
   struct sockaddr_in addr;
@@ -18,7 +18,7 @@ int socket_server_ini()
 
   /* Se inicializa la estructura addr*/
   addr.sin_family = AF_INET;                /* TCP/IP family */
-  addr.sin_port = htons(SERVER_PORT);   /* Asigning port */
+  addr.sin_port = htons(listen_port);   /* Asigning port */
   addr.sin_addr.s_addr = htonl(INADDR_ANY); /* Accept all adresses */
   bzero((void *) &(addr.sin_zero), 8);
 
@@ -41,7 +41,7 @@ int socket_server_ini()
 
   /* Se comienza a escuchar */
   syslog (LOG_INFO, "Listening connections");
-  if (listen(sockval, MAX_CONNECTIONS) < 0){
+  if (listen(sockval, max_clients) < 0){
     syslog(LOG_ERR, "Error listenining");
     exit(EXIT_FAILURE);
   }
