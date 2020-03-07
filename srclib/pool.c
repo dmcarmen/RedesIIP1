@@ -1,3 +1,5 @@
+//valgrind --leak-check=full --show-leak-kinds=all --trace-children=yes ./bin/main
+
 #include "pool.h"
 
 void * thread_accept(void * pool){
@@ -7,7 +9,7 @@ void * thread_accept(void * pool){
 
   while(1){
     connval = socket_accept(p->sockval);
-    if(connval == -1) pthread_exit(NULL);
+    if(connval < 0) pthread_exit(NULL);
     send(connval , hello , strlen(hello) , 0);
     procesarPeticiones(connval);
     sleep(1);
@@ -59,15 +61,16 @@ pool_thread * pool_create(int sockval){
 void pool_free(pool_thread * pool) {
   int i;
 
+  syslog (LOG_INFO, "Cleaning");
   //TODO pensar
   pool->stop = 1;
 
   for(i=0; i<pool->num_threads; i++){
-    pthread_kill(pool->threads[i],SIGUSR1);
+    pthread_kill(pool->threads[i], SIGINT);
   }
 
   for(i=0; i<pool->num_threads; i++){
-    pthread_join(pool->threads[i],NULL);
+    pthread_join(pool->threads[i], NULL);
   }
 
   free(pool->threads);
