@@ -20,6 +20,7 @@ int main(int argc, char const *argv[]) {
   static char *server_signature = NULL;
   cfg_t *cfg;
 
+  /* Leemos el fichero de configuracion. */
   cfg_opt_t opts[] = {
     CFG_SIMPLE_STR("server_root", &server_root),
     CFG_SIMPLE_INT("max_clients", &max_clients),
@@ -38,6 +39,7 @@ int main(int argc, char const *argv[]) {
   syslog(LOG_INFO, "Server_root: %s, server_signature: %s, max_clients: %ld, listen_ports: %ld",
 		  server_root, server_signature, max_clients, listen_port); //
 
+  /* Levantamos el manejador para poder cerrar el servidor con SIGINT. */
   act.sa_handler = manejador;
   sigemptyset(&(act.sa_mask));
   act.sa_flags = 0;
@@ -47,12 +49,14 @@ int main(int argc, char const *argv[]) {
     return 0;
   }
 
+  /* Abrimos el socket y creamos los hilos del pool estatico. */
   sockval = socket_server_ini(listen_port, max_clients);
-
   pool = pool_create(sockval);
 
+  /* El servidor corre hasta que le llega SIGINT. */
   while(flag);
 
+  /* Liberamos los recursos. */
   free(server_root);
   free(server_signature);
   pool_free(pool);

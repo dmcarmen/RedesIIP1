@@ -7,6 +7,9 @@
 #define INTERNAL_SERVER 500
 #define NOT_IMPLEMENTED 501
 
+#define PY "python3"
+#define PHP "php -f"
+
 typedef struct extension extension;
 
 struct extension {

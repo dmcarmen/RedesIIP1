@@ -13,6 +13,7 @@
 
 #define NUM_EXTENSIONES 11
 #define NUM_METODOS 3
+#define MAX_BUF 100
 
 extension extensiones[] = {
   {"txt", "text/plain"},
@@ -31,8 +32,11 @@ extension extensiones[] = {
 void GETProcesa(int connval, char *path, extension *ext, char *cuerpo);
 void POSTProcesa(int connval, char *path, extension *ext, char *cuerpo);
 void OPTIONSProcesa(int connval, char *path, extension *ext, char *cuerpo);
-char* cleanVars(char *cuerpo);
+char* clean_vars(char *cuerpo);
 char* FechaActual();
+char* FechaModificado(char * path);
+char* run_script(int connval, char *path, extension *ext, char *cuerpo);
+void enviarError(int connval, int error);
 
 metodo metodos[] = {
   {"GET", GETProcesa},
@@ -73,7 +77,7 @@ void enviarError(int connval, int error) {
 }
 
 /*TODO cuando parar de procesar peticiones, cuerpo*/
-void procesarPeticiones(int connval){
+void procesarPeticiones(int connval, char *server_signature){
   char buf[4096], *method, *path;
   int pret, minor_version;
   struct phr_header headers[100];
@@ -94,7 +98,7 @@ void procesarPeticiones(int connval){
     buflen += rret;
 
     num_headers = sizeof(headers) / sizeof(headers[0]);
-    //TODO bytes leidos == pret, para sacar el cuerpo buf + pret
+
     pret = phr_parse_request((const char *)buf, buflen, (const char **)&method, &method_len,(const char **) &path, &path_len,
                              &minor_version, headers, &num_headers, prevbuflen);
 
@@ -235,44 +239,84 @@ void GETProcesa(int connval, char *path, extension *ext, char *cuerpo) {
 }
 
 void POSTProcesa(int connval, char *path, extension *ext, char *cuerpo){ //buf+num
-  char command[100], answer[100]; //TODO 100?
-  char *vars;
-  FILE *fp;
-  char py[] = "python3"; //TODO i guess constants
-  char php[] = "php -f";
+  char *answer;
+  answer = run_script(connval, path, ext, cuerpo);
 
-  vars = cleanVars(cuerpo); //TODO remember free vars
-  if(!vars){
-    enviarError(connval, BAD_REQUEST);
+  free(answer);
+}
+
+void OPTIONSProcesa(int connval, char *path, extension *ext, char *cuerpo){
+   char *date, *server, *res;
+
+  //Calculamos la fecha actual
+  date = FechaActual();
+  if ( date == NULL ) {
+    enviarError(connval, INTERNAL_SERVER);
     return;
   }
 
+  //TODO server
+  server="";
+
+  //Enviamos el mensaje con el tamaño del fichero
+  sprintf(res,"HTTP/1.1 200 OK\nDate: %s\nServer: %s\nAllow: GET, POST, OPTIONS\nConnection: keep-alive\r\n\r\n",date,server);
+  send(connval, res, strlen(res), 0);
+  free(date);
+}
+
+char* run_script(int connval, char *path, extension *ext, char *cuerpo){
+  FILE *fp;
+  char command[MAX_BUF]; //TODO 100?
+  char *vars, *ret;
+  vars = clean_vars(cuerpo); //TODO remember free vars
+  if(!vars){
+    enviarError(connval, BAD_REQUEST);
+    return NULL;
+  }
+
   if(strcmp(ext->ext,"py") ==0)
-    sprintf(command, "echo \"%s\" | %s %s", vars, py, path);
+    sprintf(command, "echo \"%s\" | %s %s", vars, PY, path);
   else if(strcmp(ext->ext,"php") ==0)
-    sprintf(command, "echo \"%s\" | %s %s", vars, php, path);
+    sprintf(command, "echo \"%s\" | %s %s", vars, PHP, path);
   else{
     free(vars);
     enviarError(connval, BAD_REQUEST);
-    return;
+    return NULL;
   }
 
   fp = popen(command, "r");
   if(!fp){
+    syslog(LOG_ERR, "Error creating the pipe.\n");
     free(vars);
     enviarError(connval, INTERNAL_SERVER);
-    return;
+    return NULL;
   }
-  fgets(answer, 100, fp);
-  if (pclose(fp) != 0){
+
+  ret = (char*)malloc(sizeof(char)*MAX_BUF);
+  if(!ret){
+    syslog(LOG_ERR, "Error allocating ret.\n");
     free(vars);
     enviarError(connval, INTERNAL_SERVER);
-    return;
+    return NULL;
+  }
+
+  ret = fgets(ret, MAX_BUF, fp);
+  if (!ret){
+    syslog(LOG_ERR, "Error reading the pipe.\n");
+    enviarError(connval, INTERNAL_SERVER);
+  }
+
+  if (pclose(fp) == -1){
+    syslog(LOG_ERR, "Error closing the pipe.\n");
+    free(vars);
+    enviarError(connval, INTERNAL_SERVER);
+    return NULL;
   }
   free(vars);
+  return ret;
 }
 
-char* cleanVars(char *cuerpo)
+char* clean_vars(char *cuerpo)
 {
   char *limpio;
   char *ret;
@@ -310,23 +354,4 @@ char* cleanVars(char *cuerpo)
   }
   *limpio = 0;
   return limpio;
-}
-
-void OPTIONSProcesa(int connval, char *path, extension *ext, char *cuerpo){
-   char *date, *server, *res;
-
-  //Calculamos la fecha actual
-  date = FechaActual();
-  if ( date == NULL ) {
-    enviarError(connval,INTERNAL_SERVER);
-    return;
-  }
-
-  //TODO server
-  server="";
-
-  //Enviamos el mensaje con el tamaño del fichero
-  sprintf(res,"HTTP/1.1 200 OK\nDate: %s\nServer: %s\nAllow: GET, POST, OPTIONS\nConnection: keep-alive\r\n\r\n",date,server);
-  send(connval, res, strlen(res), 0);
-  free(date);
 }
