@@ -132,7 +132,7 @@ void procesarPeticiones(int connval, char *server, char* server_root){
     // Si hay ? limpiamos las variables que se pasaran al scrpt y guardamos el path antes de la ?
     else{
       vars = clean_vars(q_path + 1);
-      strlcpy(mini_path, path, (int)((q_path - path) *sizeof(char)) + 1); //TODO no se usar cadenas comprobar bien calculo:), si no token maybe
+      strlcpy(mini_path, path, (int)((q_path - path) *sizeof(char))); //TODO no se usar cadenas comprobar bien calculo:), si no token maybe, miedo a que no nul terminen
     }
 
     if(strcmp(mini_path,"/") == 0 || path == NULL) {
