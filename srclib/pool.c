@@ -11,7 +11,7 @@ void * thread_accept(void * pool){
     connval = socket_accept(p->sockval);
     if(connval < 0) pthread_exit(NULL); //TODO ver qué error concreto
     send(connval, hello, strlen(hello), 0);
-    procesarPeticiones(connval);
+    procesarPeticiones(connval, p->server_signature, p->server_root);
     sleep(1);
     close(connval);
     //wait_finished_services();
@@ -19,7 +19,7 @@ void * thread_accept(void * pool){
   pthread_exit(NULL);
 }
 
-pool_thread * pool_create(int sockval){
+pool_thread * pool_create(int sockval, char* server_signature, char* server_root){
   pool_thread *pool;
   int i;
 
@@ -32,6 +32,9 @@ pool_thread * pool_create(int sockval){
   pool->num_threads = NUM_THREADS;
   pool->stop = 0;
   pool->sockval = sockval;
+  //TODO se liberan fuera, no deberia drama creooo
+  pool->server_signature = server_signature;
+  pool->server_root = server_root;
   if(pthread_mutex_init(&pool->shared_mutex, NULL)!=0){
     free(pool);
     syslog(LOG_ERR, "Error creating mutex");

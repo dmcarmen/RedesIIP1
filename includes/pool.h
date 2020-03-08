@@ -20,9 +20,11 @@ struct pool_thread {
   pthread_mutex_t shared_mutex;
   pthread_t *threads;
   void *(*work_function)(void *);
+  char *server_signature;
+  char *server_root;
 };
 
-pool_thread * pool_create(int sockval);
+pool_thread * pool_create(int sockval, char* server_signature, char* server_root);
 void * thread_accept(void * pool);
 void pool_free(pool_thread * pool);
 #endif

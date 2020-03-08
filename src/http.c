@@ -10,6 +10,7 @@
 #include <fcntl.h>
 #include <sys/stat.h>
 #include <time.h>
+#include <bsd/string.h>
 
 #define NUM_EXTENSIONES 11
 #define NUM_METODOS 3
@@ -29,14 +30,14 @@ extension extensiones[] = {
   {"pdf","application/pdf"}
 };
 
-void GETProcesa(int connval, char *path, extension *ext, char *cuerpo);
-void POSTProcesa(int connval, char *path, extension *ext, char *cuerpo);
-void OPTIONSProcesa(int connval, char *path, extension *ext, char *cuerpo);
+void GETProcesa(int connval, char* server, char *path, extension *ext, char *vars);
+void POSTProcesa(int connval, char* server, char *path, extension *ext, char *vars);
+void OPTIONSProcesa(int connval, char* server, char *path, extension *ext, char *vars);
 char* clean_vars(char *cuerpo);
 char* FechaActual();
 char* FechaModificado(char * path);
-char* run_script(int connval, char *path, extension *ext, char *cuerpo);
-void enviarError(int connval, int error);
+char* run_script(int connval, char* server, char *path, extension *ext, char *vars);
+void enviarError(int connval, int error, char *server);
 
 metodo metodos[] = {
   {"GET", GETProcesa},
@@ -44,16 +45,13 @@ metodo metodos[] = {
   {"OPTIONS", OPTIONSProcesa}
 };
 
-void enviarError(int connval, int error) {
-  char *res, *date, *server;
+void enviarError(int connval, int error, char *server) {
+  char *res, *date;
 
   date = FechaActual();
   if ( date == NULL ) {
     return;
   }
-
-  //TODO server??
-  server="";
 
   switch(error){
     case BAD_REQUEST:
@@ -77,8 +75,9 @@ void enviarError(int connval, int error) {
 }
 
 /*TODO cuando parar de procesar peticiones, cuerpo*/
-void procesarPeticiones(int connval, char *server_signature){
-  char buf[4096], *method, *path;
+void procesarPeticiones(int connval, char *server, char* server_root){
+  char buf[4096], *method, *path, total_path[100], *q_path, mini_path[100];
+  char *vars;
   int pret, minor_version;
   struct phr_header headers[100];
   size_t buflen = 0, prevbuflen = 0, method_len, path_len, num_headers;
@@ -104,7 +103,7 @@ void procesarPeticiones(int connval, char *server_signature){
 
     if (pret < 0) {
       syslog(LOG_ERR, "Error parse request");
-      enviarError(connval, INTERNAL_SERVER);
+      enviarError(connval, INTERNAL_SERVER, server);
       continue;
     }
     //Guardamos el cuerpo de la petición, que se encuetra en el buffer más los bytes leidos por phr_parse_request
@@ -119,34 +118,48 @@ void procesarPeticiones(int connval, char *server_signature){
     }
     //Método no soportado
     if(n_met == NUM_METODOS) {
-      enviarError(connval, NOT_IMPLEMENTED);
+      enviarError(connval, NOT_IMPLEMENTED, server);
       continue;
     }
 
-    if(strcmp(path,"/") == 0 || path == NULL) {
-      path="/index.html";
-      path_len=strlen(path);
+    // Buscamos en el path si hay interogacion (solo deberia aparecer en GET si eso)
+    q_path = strchr(path, '?');
+    // Si no encuentra ? si es POST cogera el cuerpo y lo limpiara, vars sera NULL
+    if (q_path == NULL){
+      vars = clean_vars(cuerpo);
+      strcpy(mini_path, path);
+    }
+    // Si hay ? limpiamos las variables que se pasaran al scrpt y guardamos el path antes de la ?
+    else{
+      vars = clean_vars(q_path + 1);
+      strlcpy(mini_path, path, (int)((q_path - path) *sizeof(char)) + 1); //TODO no se usar cadenas comprobar bien calculo:), si no token maybe
     }
 
+    if(strcmp(mini_path,"/") == 0 || path == NULL) {
+      strcpy(mini_path, "/index.html");
+      path_len = strlen(mini_path);
+    }
+    sprintf(total_path, "%s%s", server_root, mini_path); //TODO meterlo donde haga falta
+
     //Comprobamos si el recurso existe
-    if(access(path, F_OK ) == -1) {
-      enviarError(connval, NOT_FOUND);
+    if(access(total_path, F_OK ) == -1) {
+      enviarError(connval, NOT_FOUND, server);
       continue;
     }
 
     //Comprobamos si se da soporte a la extension
     for(n_ext=0;n_ext<NUM_EXTENSIONES;n_ext++){
-      if(strcmp(extensiones[n_ext].ext,&path[path_len-strlen(extensiones[n_ext].ext)]) != 0) {
+      if(strcmp(extensiones[n_ext].ext,&mini_path[path_len-strlen(extensiones[n_ext].ext)]) != 0) {
         break;
       }
     }
     //Extensión incorrecta
     if(n_ext == NUM_EXTENSIONES) {
-      enviarError(connval, BAD_REQUEST);
+      enviarError(connval, BAD_REQUEST, server);
       continue;
     }
 
-    funcion_procesa(connval, metodos[n_met].funcion, extensiones[n_ext], cuerpo);
+    funcion_procesa(connval, total_path, metodos[n_met].funcion, extensiones[n_ext], vars);
   }
 
 }
@@ -181,34 +194,31 @@ char * FechaModificado(char * path){
   return date;
 }
 
-void GETProcesa(int connval, char *path, extension *ext, char *cuerpo) {
+void GETProcesa(int connval, char* server, char *path, extension *ext, char *vars) {
   int fd;
-  char *date, *server, *modified, *res;
+  char *date, *modified, *res;
   int len, count;
   struct stat file_stat;
 
   //Calculamos la fecha actual
   date = FechaActual();
   if ( date == NULL ) {
-    enviarError(connval,INTERNAL_SERVER);
+    enviarError(connval,INTERNAL_SERVER, server);
     return;
   }
 
   //Calculamos la última fecha en la que fue modificado
   modified = FechaModificado(path);
   if ( modified == NULL) {
-    enviarError(connval,BAD_REQUEST); //TODO check si badrequest o internalerror
+    enviarError(connval,BAD_REQUEST, server); //TODO check si badrequest o internalerror
     free(date);
     return;
   }
 
-  //TODO server
-  server="";
-
   //Abrimos fichero
   fd = open(path, O_RDONLY);
   if(fd==-1){
-    enviarError(connval,INTERNAL_SERVER);
+    enviarError(connval,INTERNAL_SERVER, server);
     free(date);
     free(modified);
     return;
@@ -222,7 +232,7 @@ void GETProcesa(int connval, char *path, extension *ext, char *cuerpo) {
     return;
   }
 
-  len=file_stat.st_size;
+  len = file_stat.st_size;
 
   //Enviamos el mensaje con el tamaño del fichero
   sprintf(res,"HTTP/1.1 200 OK\nDate: %s\nServer: %s\nLast-Modified: %s\nContent-Length: %d\nContent-Type: %s\nConnection: keep-alive\r\n\r\n", date, server, modified, len, ext->tipo);
@@ -238,25 +248,44 @@ void GETProcesa(int connval, char *path, extension *ext, char *cuerpo) {
   close(fd);
 }
 
-void POSTProcesa(int connval, char *path, extension *ext, char *cuerpo){ //buf+num
-  char *answer;
-  answer = run_script(connval, path, ext, cuerpo);
+void POSTProcesa(int connval, char* server, char *path, extension *ext, char *vars){ //buf+num
+  char *answer, *date, *res, *modified;
+  int len;
+
+  //Calculamos la fecha actual
+  date = FechaActual();
+  if (date == NULL) {
+    enviarError(connval,INTERNAL_SERVER, server);
+    return;
+  }
+
+  //Calculamos la última fecha en la que fue modificado
+  modified = FechaModificado(path);
+  if (modified == NULL) {
+    enviarError(connval,BAD_REQUEST, server); //TODO check si badrequest o internalerror
+    free(date);
+    return;
+  }
+
+  //Corremos el script y eviamos la cabecera y la respuesta
+  answer = run_script(connval, server, path, ext, vars);
+  len = strlen(answer);
+  sprintf(res,"HTTP/1.1 200 OK\nDate: %s\nServer: %s\nLast-Modified: %s\nContent-Length: %d\nContent-Type: %s\nConnection: keep-alive\r\n\r\n", date, server, modified, len, ext->tipo);
+  send(connval, res, strlen(res), 0);
+  send(connval, answer, strlen(answer), 0);
 
   free(answer);
 }
 
-void OPTIONSProcesa(int connval, char *path, extension *ext, char *cuerpo){
-   char *date, *server, *res;
+void OPTIONSProcesa(int connval, char* server, char *path, extension *ext, char *vars){
+  char *date, *res;
 
   //Calculamos la fecha actual
   date = FechaActual();
   if ( date == NULL ) {
-    enviarError(connval, INTERNAL_SERVER);
+    enviarError(connval, INTERNAL_SERVER, server);
     return;
   }
-
-  //TODO server
-  server="";
 
   //Enviamos el mensaje con el tamaño del fichero
   sprintf(res,"HTTP/1.1 200 OK\nDate: %s\nServer: %s\nAllow: GET, POST, OPTIONS\nConnection: keep-alive\r\n\r\n",date,server);
@@ -264,15 +293,10 @@ void OPTIONSProcesa(int connval, char *path, extension *ext, char *cuerpo){
   free(date);
 }
 
-char* run_script(int connval, char *path, extension *ext, char *cuerpo){
+char* run_script(int connval, char* server, char *path, extension *ext, char *vars){
   FILE *fp;
   char command[MAX_BUF]; //TODO 100?
-  char *vars, *ret;
-  vars = clean_vars(cuerpo); //TODO remember free vars
-  if(!vars){
-    enviarError(connval, BAD_REQUEST);
-    return NULL;
-  }
+  char *ret;
 
   if(strcmp(ext->ext,"py") ==0)
     sprintf(command, "echo \"%s\" | %s %s", vars, PY, path);
@@ -280,7 +304,7 @@ char* run_script(int connval, char *path, extension *ext, char *cuerpo){
     sprintf(command, "echo \"%s\" | %s %s", vars, PHP, path);
   else{
     free(vars);
-    enviarError(connval, BAD_REQUEST);
+    enviarError(connval, BAD_REQUEST, server);
     return NULL;
   }
 
@@ -288,7 +312,7 @@ char* run_script(int connval, char *path, extension *ext, char *cuerpo){
   if(!fp){
     syslog(LOG_ERR, "Error creating the pipe.\n");
     free(vars);
-    enviarError(connval, INTERNAL_SERVER);
+    enviarError(connval, INTERNAL_SERVER, server);
     return NULL;
   }
 
@@ -296,20 +320,20 @@ char* run_script(int connval, char *path, extension *ext, char *cuerpo){
   if(!ret){
     syslog(LOG_ERR, "Error allocating ret.\n");
     free(vars);
-    enviarError(connval, INTERNAL_SERVER);
+    enviarError(connval, INTERNAL_SERVER, server);
     return NULL;
   }
 
   ret = fgets(ret, MAX_BUF, fp);
   if (!ret){
     syslog(LOG_ERR, "Error reading the pipe.\n");
-    enviarError(connval, INTERNAL_SERVER);
+    enviarError(connval, INTERNAL_SERVER, server);
   }
 
   if (pclose(fp) == -1){
     syslog(LOG_ERR, "Error closing the pipe.\n");
     free(vars);
-    enviarError(connval, INTERNAL_SERVER);
+    enviarError(connval, INTERNAL_SERVER, server);
     return NULL;
   }
   free(vars);
@@ -322,6 +346,8 @@ char* clean_vars(char *cuerpo)
   char *ret;
   int flag = 1;
 
+  if(!cuerpo)
+    return NULL;
   limpio = (char *)malloc(sizeof(char) * (strlen(cuerpo) + 1));
   if(!limpio)
     return NULL;

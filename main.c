@@ -51,7 +51,7 @@ int main(int argc, char const *argv[]) {
 
   /* Abrimos el socket y creamos los hilos del pool estatico. */
   sockval = socket_server_ini(listen_port, max_clients);
-  pool = pool_create(sockval);
+  pool = pool_create(sockval, server_signature, server_root);
 
   /* El servidor corre hasta que le llega SIGINT. */
   while(flag);
