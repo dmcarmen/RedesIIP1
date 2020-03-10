@@ -10,7 +10,6 @@
 #include <fcntl.h>
 #include <sys/stat.h>
 #include <time.h>
-#include <bsd/string.h>
 
 #define NUM_EXTENSIONES 11
 #define NUM_METODOS 3
@@ -46,7 +45,7 @@ metodo metodos[] = {
 };
 
 void enviarError(int connval, int error, char *server) {
-  char *res, *date;
+  char res[1000], *date;
 
   date = FechaActual();
   if ( date == NULL ) {
@@ -55,7 +54,7 @@ void enviarError(int connval, int error, char *server) {
 
   switch(error){
     case BAD_REQUEST:
-    sprintf(res,"HTTP/1.1 400 Bad Request\nDate: %s\nServer: %s\nConnection: keep-alive\r\n\r\n",date,server);
+    sprintf(res, "HTTP/1.1 400 Bad Request\nDate: %s\nServer: %s\nConnection: keep-alive\r\n\r\n",date,server);
       break;
     case NOT_FOUND:
       sprintf(res,"HTTP/1.1 404 Not Found\nDate: %s\nServer: %s\nConnection: keep-alive\r\n\r\n",date,server);
@@ -83,7 +82,8 @@ void procesarPeticiones(int connval, char *server, char* server_root){
   size_t buflen = 0, prevbuflen = 0, method_len, path_len, num_headers;
   ssize_t rret;
   int n_ext, n_met;
-  char *cadena, *res, *cuerpo;
+  char *cuerpo;
+  void (*funcion_procesa)(int , char*, char*, extension*, char*);
 
   while(1){
     //TODO Esto esta distinto, cuidao
@@ -113,6 +113,7 @@ void procesarPeticiones(int connval, char *server, char* server_root){
     //Comprobamos que se da soporte el método
     for(n_met=0; n_met<NUM_METODOS; n_met++){
       if(strcmp(metodos[n_met].name, method) == 0) {
+        funcion_procesa = metodos[n_met].funcion;
         break;
       }
     }
@@ -132,7 +133,8 @@ void procesarPeticiones(int connval, char *server, char* server_root){
     // Si hay ? limpiamos las variables que se pasaran al scrpt y guardamos el path antes de la ?
     else{
       vars = clean_vars(q_path + 1);
-      strlcpy(mini_path, path, (int)((q_path - path) *sizeof(char))); //TODO no se usar cadenas comprobar bien calculo:), si no token maybe, miedo a que no nul terminen
+      strncpy(mini_path, path, (int)((q_path - path) *sizeof(char))); //TODO no se usar cadenas comprobar bien calculo:), si no token maybe, miedo a que no nul terminen
+      mini_path[(int)((q_path - path) *sizeof(char)) + 1] = 0;
     }
 
     if(strcmp(mini_path,"/") == 0 || path == NULL) {
@@ -159,7 +161,7 @@ void procesarPeticiones(int connval, char *server, char* server_root){
       continue;
     }
 
-    funcion_procesa(connval, total_path, metodos[n_met].funcion, extensiones[n_ext], vars);
+    funcion_procesa(connval, server, total_path, &extensiones[n_ext], vars);
   }
 
 }
@@ -196,7 +198,7 @@ char * FechaModificado(char * path){
 
 void GETProcesa(int connval, char* server, char *path, extension *ext, char *vars) {
   int fd;
-  char *date, *modified, *res;
+  char *date, *modified, res[1000];
   int len, count;
   struct stat file_stat;
 
@@ -249,7 +251,7 @@ void GETProcesa(int connval, char* server, char *path, extension *ext, char *var
 }
 
 void POSTProcesa(int connval, char* server, char *path, extension *ext, char *vars){ //buf+num
-  char *answer, *date, *res, *modified;
+  char *answer, *date, res[1000], *modified;
   int len;
 
   //Calculamos la fecha actual
@@ -278,7 +280,7 @@ void POSTProcesa(int connval, char* server, char *path, extension *ext, char *va
 }
 
 void OPTIONSProcesa(int connval, char* server, char *path, extension *ext, char *vars){
-  char *date, *res;
+  char *date, res[1000];
 
   //Calculamos la fecha actual
   date = FechaActual();
