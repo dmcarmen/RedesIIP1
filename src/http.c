@@ -112,7 +112,7 @@ void procesarPeticiones(int connval, char *server, char* server_root){
 
     //Comprobamos que se da soporte el método
     for(n_met=0; n_met<NUM_METODOS; n_met++){
-      if(strcmp(metodos[n_met].name, method) == 0) {
+      if(strncmp(metodos[n_met].name, method, strlen(metodos[n_met].name)) == 0) {
         funcion_procesa = metodos[n_met].funcion;
         break;
       }
