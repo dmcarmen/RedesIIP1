@@ -75,7 +75,7 @@ void enviarError(int connval, int error, char *server) {
 
 /*TODO cuando parar de procesar peticiones, cuerpo*/
 void procesarPeticiones(int connval, char *server, char* server_root){
-  char buf[4096], *method, *path, total_path[100], *q_path, mini_path[100], *cuerpo = NULL;
+  char buf[4096], *method, *path = NULL, total_path[100], *q_path = NULL, *mini_path = NULL, *cuerpo = NULL;
   char *vars;
   int pret, minor_version;
   struct phr_header headers[100];
@@ -108,7 +108,7 @@ void procesarPeticiones(int connval, char *server, char* server_root){
     //Guardamos el cuerpo de la petición, que se encuetra en el buffer más los bytes leidos por phr_parse_request
     if (pret > 1)
       cuerpo = buf + pret;
-    syslog(LOG_INFO, "cuerpo = %s", cuerpo);
+    syslog(LOG_INFO, "Body: %s", cuerpo);
     //Comprobamos que se da soporte el método
     for(n_met=0; n_met<NUM_METODOS; n_met++){
       if(strncmp(metodos[n_met].name, method, strlen(metodos[n_met].name)) == 0) {
@@ -129,34 +129,36 @@ void procesarPeticiones(int connval, char *server, char* server_root){
     // Si no encuentra ? si es POST cogera el cuerpo y lo limpiara, vars sera NULL
     if (q_path == NULL){
       vars = clean_vars(cuerpo);
-      syslog(LOG_INFO, "vars = %s", vars);
-      strcpy(mini_path, path);
-      syslog(LOG_INFO, "mini_path = %s", mini_path);
+      syslog(LOG_INFO, "Vars: %s", vars);
+      mini_path = strdup(path);
     }
     // Si hay ? limpiamos las variables que se pasaran al scrpt y guardamos el path antes de la ?
     else{
-      syslog(LOG_INFO, "q_path = %s", q_path);
-      vars = clean_vars(q_path + 1);
-      syslog(LOG_INFO, "vars = %s", vars);
-      strncpy(mini_path, path, (int)((q_path - path) *sizeof(char))); //TODO no se usar cadenas comprobar bien calculo:), si no token maybe, miedo a que no nul terminen
-      mini_path[(int)((q_path - path) *sizeof(char)) + 1] = 0;
+      syslog(LOG_INFO, "q_path: %s", q_path);
+      vars = clean_vars(strdup(q_path + 1));
+      syslog(LOG_INFO, "vars: %s", vars);
+      mini_path = strndup(path, (int)((q_path - path) *sizeof(char))+1); //TODO no se usar cadenas comprobar bien calculo:), si no token maybe, miedo a que no nul terminen
+      mini_path[(int)((q_path - path) *sizeof(char))] = 0;
     }
+    syslog(LOG_INFO, "mini_path: %s", mini_path);
 
     if(strcmp(mini_path,"/") == 0 || path == NULL) {
-      strcpy(mini_path, "/index.html");
-      path_len = strlen(mini_path);
+      free(mini_path);
+      mini_path = strdup("/index.html");
+      path_len += strlen(mini_path) - 1;
     }
     sprintf(total_path, "%s%s", server_root, mini_path); //TODO meterlo donde haga falta
     syslog(LOG_INFO, "Path: %s", total_path);
     //Comprobamos si el recurso existe
-    if(access("/home/dmcarmen/Desktop/Redes2/practica1/iris.txt", F_OK) == -1) {
+    if(access("/home/dmcarmen/Desktop/Redes2/practica1/iris.txt", F_OK) == -1) { //TODO total_path
       enviarError(connval, NOT_FOUND, server);
       continue;
     }
 
     //Comprobamos si se da soporte a la extension
     for(n_ext=0; n_ext<NUM_EXTENSIONES; n_ext++){
-      if(strcmp(extensiones[n_ext].ext,&mini_path[path_len - strlen(extensiones[n_ext].ext)]) != 0) {
+      if(strcmp(extensiones[n_ext].ext, strchr(mini_path, '.') + 1) != 0) {
+        syslog(LOG_INFO, "Extension: %s %s %i", extensiones[n_ext].ext, strchr(mini_path, '.') + 1, n_ext); //wtf
         break;
       }
     }
@@ -167,7 +169,10 @@ void procesarPeticiones(int connval, char *server, char* server_root){
       continue;
     }
 
-    funcion_procesa(connval, server, "/home/dmcarmen/Desktop/Redes2/practica1/iris.txt", &extensiones[n_ext], vars);
+    funcion_procesa(connval, server, "/home/dmcarmen/Desktop/Redes2/practica1/iris.txt", &extensiones[n_ext], vars); //TODO total_path
+    free(vars);
+    free(mini_path);
+    break;
   }
 
 }
@@ -252,6 +257,8 @@ void POSTProcesa(int connval, char* server, char *path, extension *ext, char *va
   send(connval, res, strlen(res), 0);
   send(connval, answer, strlen(answer), 0);
 
+  free(date);
+  free(modified);
   free(answer);
 }
 
@@ -281,7 +288,6 @@ char* run_script(int connval, char* server, char *path, extension *ext, char *va
   else if(strcmp(ext->ext,"php") ==0)
     sprintf(command, "echo \"%s\" | %s %s", vars, PHP, path);
   else{
-    free(vars);
     enviarError(connval, BAD_REQUEST, server);
     return NULL;
   }
@@ -289,7 +295,6 @@ char* run_script(int connval, char* server, char *path, extension *ext, char *va
   fp = popen(command, "r");
   if(!fp){
     syslog(LOG_ERR, "Error creating the pipe.");
-    free(vars);
     enviarError(connval, INTERNAL_SERVER, server);
     return NULL;
   }
@@ -297,7 +302,6 @@ char* run_script(int connval, char* server, char *path, extension *ext, char *va
   ret = (char*)malloc(sizeof(char)*MAX_BUF);
   if(!ret){
     syslog(LOG_ERR, "Error allocating ret.");
-    free(vars);
     enviarError(connval, INTERNAL_SERVER, server);
     return NULL;
   }
@@ -310,11 +314,9 @@ char* run_script(int connval, char* server, char *path, extension *ext, char *va
 
   if (pclose(fp) == -1){
     syslog(LOG_ERR, "Error closing the pipe.");
-    free(vars);
     enviarError(connval, INTERNAL_SERVER, server);
     return NULL;
   }
-  free(vars);
   return ret;
 }
 
@@ -356,11 +358,8 @@ char* clean_vars(char *cuerpo)
 
   if(!cuerpo || *cuerpo == 0)
     return NULL;
-  limpio = (char *)malloc(sizeof(char) * (strlen(cuerpo) + 1));
-  if(!limpio)
-    return NULL;
+  limpio = strdup(cuerpo);
   ret = cuerpo;
-  limpio[strlen(cuerpo)] = 0;
   //var1=manolo&var2=paco&var3=men
   i = 0;
   while(flag)
@@ -370,16 +369,12 @@ char* clean_vars(char *cuerpo)
       free(limpio);
       return NULL;
     }
-    syslog(LOG_INFO, "ret = %s", ret);
     //guarda hasta encontrar & o fin de cadena
     for (j = 1; ret[j] != '&' && ret[j] != 0; j++)
     {
       limpio[i] = ret[j];
       i++;
-      syslog(LOG_INFO, "1.limpio = %s %d 1.ret = %s %d", limpio, i, ret, j);
     }
-    syslog(LOG_INFO, "2.limpio = %s, ret[%d] = %c", limpio, j, ret[j]);
-    i++;
     //si es fin de cadena se va del bucle
     if(ret[j] == 0)
     {
@@ -387,9 +382,10 @@ char* clean_vars(char *cuerpo)
       break;
     }
     ret = ret + j;
-    limpio[i] = 'g';
+    limpio[i] = ' ';
     i++;
   }
   limpio[i] = 0;
+  free(cuerpo);
   return limpio;
 }
