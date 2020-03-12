@@ -3,14 +3,12 @@
 #include "pool.h"
 
 void * thread_accept(void * pool){
-  char *hello = "Hello from server";
   pool_thread *p = (pool_thread *)pool;
   int connval;
 
   while(1){
     connval = socket_accept(p->sockval);
     if(connval < 0) pthread_exit(NULL); //TODO ver qué error concreto
-    send(connval, hello, strlen(hello), 0);
     procesarPeticiones(connval, p->server_signature, p->server_root);
     sleep(1);
     close(connval);

@@ -51,19 +51,19 @@ void enviarError(int connval, int error, char *server) {
   if ( date == NULL ) {
     return;
   }
-
+  syslog(LOG_INFO, "Sending error %d to the client.", error);
   switch(error){
     case BAD_REQUEST:
-    sprintf(res, "HTTP/1.1 400 Bad Request\nDate: %s\nServer: %s\nConnection: keep-alive\r\n\r\n",date,server);
+    sprintf(res, "HTTP/1.1 400 Bad Request\r\nDate: %s\r\nServer: %s\r\nConnection: keep-alive\r\n\r\n",date,server);
       break;
     case NOT_FOUND:
-      sprintf(res,"HTTP/1.1 404 Not Found\nDate: %s\nServer: %s\nConnection: keep-alive\r\n\r\n",date,server);
+      sprintf(res,"HTTP/1.1 404 Not Found\r\nDate: %s\r\nServer: %s\r\nConnection: keep-alive\r\n\r\n",date,server);
       break;
     case INTERNAL_SERVER:
-      sprintf(res,"HTTP/1.1 500 Internal Server Error\nDate: %s\nServer: %s\nConnection: keep-alive\r\n\r\n",date,server);
+      sprintf(res,"HTTP/1.1 500 Internal Server Error\r\nDate: %s\r\nServer: %s\r\nConnection: keep-alive\r\n\r\n",date,server);
       break;
     case NOT_IMPLEMENTED:
-      printf(res,"HTTP/1.1 501 Not Implemented\nDate: %s\nServer: %s\nConnection: keep-alive\r\n\r\n",date,server);
+      printf(res,"HTTP/1.1 501 Not Implemented\r\nDate: %s\r\nServer: %s\r\nConnection: keep-alive\r\n\r\n",date,server);
       break;
     default:
       break;
@@ -75,14 +75,13 @@ void enviarError(int connval, int error, char *server) {
 
 /*TODO cuando parar de procesar peticiones, cuerpo*/
 void procesarPeticiones(int connval, char *server, char* server_root){
-  char buf[4096], *method, *path, total_path[100], *q_path, mini_path[100];
+  char buf[4096], *method, *path, total_path[100], *q_path, mini_path[100], *cuerpo = NULL;
   char *vars;
   int pret, minor_version;
   struct phr_header headers[100];
   size_t buflen = 0, prevbuflen = 0, method_len, path_len, num_headers;
   ssize_t rret;
   int n_ext, n_met;
-  char *cuerpo;
   void (*funcion_procesa)(int , char*, char*, extension*, char*);
 
   while(1){
@@ -108,12 +107,13 @@ void procesarPeticiones(int connval, char *server, char* server_root){
     }
     //Guardamos el cuerpo de la petición, que se encuetra en el buffer más los bytes leidos por phr_parse_request
     if (pret > 1)
-      cuerpo = buf - pret;
-
+      cuerpo = buf + pret;
+    syslog(LOG_INFO, "cuerpo = %s", cuerpo);
     //Comprobamos que se da soporte el método
     for(n_met=0; n_met<NUM_METODOS; n_met++){
       if(strncmp(metodos[n_met].name, method, strlen(metodos[n_met].name)) == 0) {
         funcion_procesa = metodos[n_met].funcion;
+        syslog(LOG_INFO, "Method: %s", metodos[n_met].name);
         break;
       }
     }
@@ -123,16 +123,21 @@ void procesarPeticiones(int connval, char *server, char* server_root){
       continue;
     }
 
+    path[path_len + 1] = 0;
     // Buscamos en el path si hay interogacion (solo deberia aparecer en GET si eso)
     q_path = strchr(path, '?');
     // Si no encuentra ? si es POST cogera el cuerpo y lo limpiara, vars sera NULL
     if (q_path == NULL){
       vars = clean_vars(cuerpo);
+      syslog(LOG_INFO, "vars = %s", vars);
       strcpy(mini_path, path);
+      syslog(LOG_INFO, "mini_path = %s", mini_path);
     }
     // Si hay ? limpiamos las variables que se pasaran al scrpt y guardamos el path antes de la ?
     else{
+      syslog(LOG_INFO, "q_path = %s", q_path);
       vars = clean_vars(q_path + 1);
+      syslog(LOG_INFO, "vars = %s", vars);
       strncpy(mini_path, path, (int)((q_path - path) *sizeof(char))); //TODO no se usar cadenas comprobar bien calculo:), si no token maybe, miedo a que no nul terminen
       mini_path[(int)((q_path - path) *sizeof(char)) + 1] = 0;
     }
@@ -142,58 +147,29 @@ void procesarPeticiones(int connval, char *server, char* server_root){
       path_len = strlen(mini_path);
     }
     sprintf(total_path, "%s%s", server_root, mini_path); //TODO meterlo donde haga falta
-
+    syslog(LOG_INFO, "Path: %s", total_path);
     //Comprobamos si el recurso existe
-    if(access(total_path, F_OK ) == -1) {
+    if(access("/home/dmcarmen/Desktop/Redes2/practica1/iris.txt", F_OK) == -1) {
       enviarError(connval, NOT_FOUND, server);
       continue;
     }
 
     //Comprobamos si se da soporte a la extension
-    for(n_ext=0;n_ext<NUM_EXTENSIONES;n_ext++){
-      if(strcmp(extensiones[n_ext].ext,&mini_path[path_len-strlen(extensiones[n_ext].ext)]) != 0) {
+    for(n_ext=0; n_ext<NUM_EXTENSIONES; n_ext++){
+      if(strcmp(extensiones[n_ext].ext,&mini_path[path_len - strlen(extensiones[n_ext].ext)]) != 0) {
         break;
       }
     }
     //Extensión incorrecta
     if(n_ext == NUM_EXTENSIONES) {
+      syslog(LOG_INFO, "Extension incorrecta.");
       enviarError(connval, BAD_REQUEST, server);
       continue;
     }
 
-    funcion_procesa(connval, server, total_path, &extensiones[n_ext], vars);
+    funcion_procesa(connval, server, "/home/dmcarmen/Desktop/Redes2/practica1/iris.txt", &extensiones[n_ext], vars);
   }
 
-}
-
-char * FechaActual(){
-  time_t now;
-  char s[100];
-  char *date;
-
-  now = time(NULL);
-  strftime(s, sizeof(s)-1, "%a, %d %b %Y %H:%M:%S %Z", gmtime(&now));
-
-  date = (char *) malloc (sizeof(s));
-  if(date==NULL) return NULL;
-
-  strcpy(date, s);
-  return date;
-}
-
-char * FechaModificado(char * path){
-  struct stat buf;
-  char s[100];
-  char *date;
-
-  if(stat(path,&buf) == -1) return NULL;
-  strftime(s, sizeof(s)-1, "%a, %d %b %Y %H:%M:%S %Z", gmtime(&buf.st_mtime));
-
-  date = (char *) malloc (sizeof(s));
-  if(date==NULL) return NULL;
-
-  strcpy(date, s);
-  return date;
 }
 
 void GETProcesa(int connval, char* server, char *path, extension *ext, char *vars) {
@@ -211,8 +187,8 @@ void GETProcesa(int connval, char* server, char *path, extension *ext, char *var
 
   //Calculamos la última fecha en la que fue modificado
   modified = FechaModificado(path);
-  if ( modified == NULL) {
-    enviarError(connval,BAD_REQUEST, server); //TODO check si badrequest o internalerror
+  if (modified == NULL) {
+    enviarError(connval, BAD_REQUEST, server); //TODO check si badrequest o internalerror
     free(date);
     return;
   }
@@ -237,7 +213,7 @@ void GETProcesa(int connval, char* server, char *path, extension *ext, char *var
   len = file_stat.st_size;
 
   //Enviamos el mensaje con el tamaño del fichero
-  sprintf(res,"HTTP/1.1 200 OK\nDate: %s\nServer: %s\nLast-Modified: %s\nContent-Length: %d\nContent-Type: %s\nConnection: keep-alive\r\n\r\n", date, server, modified, len, ext->tipo);
+  sprintf(res,"HTTP/1.1 200 OK\r\nDate: %s\r\nServer: %s\r\nLast-Modified: %s\r\nContent-Length: %d\r\nContent-Type: %s\r\nConnection: keep-alive\r\n\r\n", date, server, modified, len, ext->tipo);
   send(connval, res, strlen(res), 0);
 
   //Enviamos los datos del fichero
@@ -272,7 +248,7 @@ void POSTProcesa(int connval, char* server, char *path, extension *ext, char *va
   //Corremos el script y eviamos la cabecera y la respuesta
   answer = run_script(connval, server, path, ext, vars);
   len = strlen(answer);
-  sprintf(res,"HTTP/1.1 200 OK\nDate: %s\nServer: %s\nLast-Modified: %s\nContent-Length: %d\nContent-Type: %s\nConnection: keep-alive\r\n\r\n", date, server, modified, len, ext->tipo);
+  sprintf(res,"HTTP/1.1 200 OK\r\nDate: %s\r\nServer: %s\r\nLast-Modified: %s\r\nContent-Length: %d\r\nContent-Type: %s\r\nConnection: keep-alive\r\n\r\n", date, server, modified, len, ext->tipo);
   send(connval, res, strlen(res), 0);
   send(connval, answer, strlen(answer), 0);
 
@@ -290,7 +266,7 @@ void OPTIONSProcesa(int connval, char* server, char *path, extension *ext, char 
   }
 
   //Enviamos el mensaje con el tamaño del fichero
-  sprintf(res,"HTTP/1.1 200 OK\nDate: %s\nServer: %s\nAllow: GET, POST, OPTIONS\nConnection: keep-alive\r\n\r\n",date,server);
+  sprintf(res,"HTTP/1.1 200 OK\r\nDate: %s\r\nServer: %s\r\nAllow: GET, POST, OPTIONS\r\nConnection: keep-alive\r\n\r\n",date,server);
   send(connval, res, strlen(res), 0);
   free(date);
 }
@@ -312,7 +288,7 @@ char* run_script(int connval, char* server, char *path, extension *ext, char *va
 
   fp = popen(command, "r");
   if(!fp){
-    syslog(LOG_ERR, "Error creating the pipe.\n");
+    syslog(LOG_ERR, "Error creating the pipe.");
     free(vars);
     enviarError(connval, INTERNAL_SERVER, server);
     return NULL;
@@ -320,7 +296,7 @@ char* run_script(int connval, char* server, char *path, extension *ext, char *va
 
   ret = (char*)malloc(sizeof(char)*MAX_BUF);
   if(!ret){
-    syslog(LOG_ERR, "Error allocating ret.\n");
+    syslog(LOG_ERR, "Error allocating ret.");
     free(vars);
     enviarError(connval, INTERNAL_SERVER, server);
     return NULL;
@@ -328,12 +304,12 @@ char* run_script(int connval, char* server, char *path, extension *ext, char *va
 
   ret = fgets(ret, MAX_BUF, fp);
   if (!ret){
-    syslog(LOG_ERR, "Error reading the pipe.\n");
+    syslog(LOG_ERR, "Error reading the pipe.");
     enviarError(connval, INTERNAL_SERVER, server);
   }
 
   if (pclose(fp) == -1){
-    syslog(LOG_ERR, "Error closing the pipe.\n");
+    syslog(LOG_ERR, "Error closing the pipe.");
     free(vars);
     enviarError(connval, INTERNAL_SERVER, server);
     return NULL;
@@ -342,19 +318,51 @@ char* run_script(int connval, char* server, char *path, extension *ext, char *va
   return ret;
 }
 
+
+char * FechaActual(){
+  time_t now;
+  char s[100];
+  char *date;
+
+  now = time(NULL);
+  strftime(s, sizeof(s)-1, "%a, %d %b %Y %H:%M:%S %Z", gmtime(&now));
+
+  date = (char *) malloc (sizeof(s));
+  if(date==NULL) return NULL;
+
+  strcpy(date, s);
+  return date;
+}
+
+char * FechaModificado(char * path){
+  struct stat buf;
+  char s[100];
+  char *date;
+
+  if(stat(path,&buf) == -1) return NULL;
+  strftime(s, sizeof(s)-1, "%a, %d %b %Y %H:%M:%S %Z", gmtime(&buf.st_mtime));
+
+  date = (char *) malloc (sizeof(s));
+  if(date==NULL) return NULL;
+
+  strcpy(date, s);
+  return date;
+}
+
 char* clean_vars(char *cuerpo)
 {
-  char *limpio;
-  char *ret;
-  int flag = 1;
+  char *limpio, *ret;
+  int flag = 1, i, j;
 
-  if(!cuerpo)
+  if(!cuerpo || *cuerpo == 0)
     return NULL;
   limpio = (char *)malloc(sizeof(char) * (strlen(cuerpo) + 1));
   if(!limpio)
     return NULL;
   ret = cuerpo;
-//var1=manolo&var2=paco&var3=men
+  limpio[strlen(cuerpo)] = 0;
+  //var1=manolo&var2=paco&var3=men
+  i = 0;
   while(flag)
   {
     //busca primer =
@@ -362,24 +370,26 @@ char* clean_vars(char *cuerpo)
       free(limpio);
       return NULL;
     }
-    ret++;
+    syslog(LOG_INFO, "ret = %s", ret);
     //guarda hasta encontrar & o fin de cadena
-    while (*ret != '&' || *ret != 0)
+    for (j = 1; ret[j] != '&' && ret[j] != 0; j++)
     {
-      *limpio = *ret;
-      limpio++;
-      ret++;
+      limpio[i] = ret[j];
+      i++;
+      syslog(LOG_INFO, "1.limpio = %s %d 1.ret = %s %d", limpio, i, ret, j);
     }
-    limpio++;
+    syslog(LOG_INFO, "2.limpio = %s, ret[%d] = %c", limpio, j, ret[j]);
+    i++;
     //si es fin de cadena se va del bucle
-    if(*ret == 0)
+    if(ret[j] == 0)
     {
       flag = 0;
       break;
     }
-    *limpio = ' ';
-    limpio++;
+    ret = ret + j;
+    limpio[i] = 'g';
+    i++;
   }
-  *limpio = 0;
+  limpio[i] = 0;
   return limpio;
 }
