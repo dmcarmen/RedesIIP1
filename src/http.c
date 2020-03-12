@@ -129,17 +129,15 @@ void procesarPeticiones(int connval, char *server, char* server_root){
     // Si no encuentra ? si es POST cogera el cuerpo y lo limpiara, vars sera NULL
     if (q_path == NULL){
       vars = clean_vars(cuerpo);
-      syslog(LOG_INFO, "Vars: %s", vars);
       mini_path = strdup(path);
     }
     // Si hay ? limpiamos las variables que se pasaran al scrpt y guardamos el path antes de la ?
     else{
       syslog(LOG_INFO, "q_path: %s", q_path);
       vars = clean_vars(strdup(q_path + 1));
-      syslog(LOG_INFO, "vars: %s", vars);
-      mini_path = strndup(path, (int)((q_path - path) *sizeof(char))+1); //TODO no se usar cadenas comprobar bien calculo:), si no token maybe, miedo a que no nul terminen
-      mini_path[(int)((q_path - path) *sizeof(char))] = 0;
+      mini_path = strndup(path, (int)((q_path - path) *sizeof(char))); //TODO no se usar cadenas comprobar bien calculo:), si no token maybe, miedo a que no nul terminen
     }
+    syslog(LOG_INFO, "vars: %s", vars);
     syslog(LOG_INFO, "mini_path: %s", mini_path);
 
     if(strcmp(mini_path,"/") == 0 || path == NULL) {
