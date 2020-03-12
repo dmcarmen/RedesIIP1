@@ -9,7 +9,7 @@
 #include "http.h"
 #include <signal.h>
 
-#define NUM_THREADS 2
+#define NUM_THREADS 10
 
 typedef struct pool_thread pool_thread;
 

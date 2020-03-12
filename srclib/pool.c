@@ -9,8 +9,10 @@ void * thread_accept(void * pool){
   while(1){
     connval = socket_accept(p->sockval);
     if(connval < 0) pthread_exit(NULL); //TODO ver qué error concreto
-    procesarPeticiones(connval, p->server_signature, p->server_root);
-    sleep(1);
+    if(procesarPeticiones(connval, p->server_signature, p->server_root)==-1) {
+      close(connval);
+      pthread_exit(NULL);
+    }
     close(connval);
     //wait_finished_services();
   }

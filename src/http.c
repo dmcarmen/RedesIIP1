@@ -51,54 +51,59 @@ void enviarError(int connval, int error, char *server) {
   if ( date == NULL ) {
     return;
   }
+  //TODO htmls
   syslog(LOG_INFO, "Sending error %d to the client.", error);
   switch(error){
     case BAD_REQUEST:
-    sprintf(res, "HTTP/1.1 400 Bad Request\r\nDate: %s\r\nServer: %s\r\nConnection: keep-alive\r\n\r\n",date,server);
+      sprintf(res, "HTTP/1.1 400 Bad Request\r\nDate: %s\r\nServer: %s\r\nConnection: keep-alive\r\n\r\n",date,server);
       break;
     case NOT_FOUND:
-      sprintf(res,"HTTP/1.1 404 Not Found\r\nDate: %s\r\nServer: %s\r\nConnection: keep-alive\r\n\r\n",date,server);
+      sprintf(res,"HTTP/1.1 404 Not Found\r\nDate: %s\r\nServer: %s\r\nConnection: close\r\nContent-Type: text/html\r\nContent-Length: 138\r\n\r\n<html><head>\n<title>404 Not Found</title>\n</head><body>\n<h1>Not Found</h1>\nThe requested URL was not found on this server.\n</body></html>\n",date,server);
       break;
     case INTERNAL_SERVER:
       sprintf(res,"HTTP/1.1 500 Internal Server Error\r\nDate: %s\r\nServer: %s\r\nConnection: keep-alive\r\n\r\n",date,server);
       break;
     case NOT_IMPLEMENTED:
-      printf(res,"HTTP/1.1 501 Not Implemented\r\nDate: %s\r\nServer: %s\r\nConnection: keep-alive\r\n\r\n",date,server);
+      sprintf(res,"HTTP/1.1 501 Not Implemented\r\nDate: %s\r\nServer: %s\r\nConnection: keep-alive\r\n\r\n",date,server);
       break;
     default:
       break;
   }
-
+syslog(LOG_INFO, "Sending %s", res);
   send(connval, res, strlen(res), 0);
   free(date);
 }
 
 /*TODO cuando parar de procesar peticiones, cuerpo*/
-void procesarPeticiones(int connval, char *server, char* server_root){
-  char buf[4096], *method, *path = NULL, total_path[100], *q_path = NULL, *mini_path = NULL, *cuerpo = NULL;
+int procesarPeticiones(int connval, char *server, char* server_root){
+  char buf[4096], *method, *path = NULL, total_path[100], *q_path = NULL, *mini_path = NULL, *cuerpo = NULL, *aux_path=NULL;
   char *vars;
   int pret, minor_version;
   struct phr_header headers[100];
-  size_t buflen = 0, prevbuflen = 0, method_len, path_len, num_headers;
+  size_t method_len, path_len, num_headers;
   ssize_t rret;
   int n_ext, n_met;
   void (*funcion_procesa)(int , char*, char*, extension*, char*);
 
   while(1){
     //TODO Esto esta distinto, cuidao
-    rret = recv(connval,buf + buflen, sizeof(buf) - buflen, 0);
-    if(rret == -1) {
-      syslog(LOG_ERR, "Error recv");
-      return;
-    }
+    bzero(buf,sizeof(char)*4096);
+    rret = recv(connval,buf, sizeof(buf), 0);
+    syslog(LOG_INFO, "REQUEST: %s %d", buf, (int)rret);
+    if(rret == 0) return 0;
 
-    prevbuflen = buflen;
-    buflen += rret;
+    if(rret == -1) {
+      if(errno == EINTR){
+        return rret;
+      }
+      syslog(LOG_ERR, "Error recv");
+      return 0;
+    }
 
     num_headers = sizeof(headers) / sizeof(headers[0]);
 
-    pret = phr_parse_request((const char *)buf, buflen, (const char **)&method, &method_len,(const char **) &path, &path_len,
-                             &minor_version, headers, &num_headers, prevbuflen);
+    pret = phr_parse_request((const char *)buf, rret, (const char **)&method, &method_len,(const char **) &path, &path_len,
+                             &minor_version, headers, &num_headers, 0);
 
     if (pret < 0) {
       syslog(LOG_ERR, "Error parse request");
@@ -111,7 +116,7 @@ void procesarPeticiones(int connval, char *server, char* server_root){
     syslog(LOG_INFO, "Body: %s", cuerpo);
     //Comprobamos que se da soporte el método
     for(n_met=0; n_met<NUM_METODOS; n_met++){
-      if(strncmp(metodos[n_met].name, method, strlen(metodos[n_met].name)) == 0) {
+      if(strncmp(metodos[n_met].name, method, method_len) == 0) {
         funcion_procesa = metodos[n_met].funcion;
         syslog(LOG_INFO, "Method: %s", metodos[n_met].name);
         break;
@@ -123,20 +128,21 @@ void procesarPeticiones(int connval, char *server, char* server_root){
       continue;
     }
 
-    path[path_len + 1] = 0;
+    aux_path = strndup(path, path_len);
     // Buscamos en el path si hay interogacion (solo deberia aparecer en GET si eso)
-    q_path = strchr(path, '?');
+    q_path = strchr(aux_path, '?');
     // Si no encuentra ? si es POST cogera el cuerpo y lo limpiara, vars sera NULL
     if (q_path == NULL){
       vars = clean_vars(cuerpo);
-      mini_path = strdup(path);
+      mini_path = strdup(aux_path);
     }
     // Si hay ? limpiamos las variables que se pasaran al scrpt y guardamos el path antes de la ?
     else{
       syslog(LOG_INFO, "q_path: %s", q_path);
       vars = clean_vars(strdup(q_path + 1));
-      mini_path = strndup(path, (int)((q_path - path) *sizeof(char))); //TODO no se usar cadenas comprobar bien calculo:), si no token maybe, miedo a que no nul terminen
+      mini_path = strndup(aux_path, (int)((q_path - aux_path) *sizeof(char))); //TODO no se usar cadenas comprobar bien calculo:), si no token maybe, miedo a que no nul terminen
     }
+    free(aux_path);
     syslog(LOG_INFO, "vars: %s", vars);
     syslog(LOG_INFO, "mini_path: %s", mini_path);
 
@@ -145,18 +151,19 @@ void procesarPeticiones(int connval, char *server, char* server_root){
       mini_path = strdup("/index.html");
       path_len += strlen(mini_path) - 1;
     }
-    sprintf(total_path, "%s%s", server_root, mini_path); //TODO meterlo donde haga falta
-    syslog(LOG_INFO, "Path: %s", total_path);
+
+    sprintf(total_path, "%s%s", server_root, mini_path);
+    syslog(LOG_INFO, "Path:%s", total_path);
     //Comprobamos si el recurso existe
-    if(access("/home/dmcarmen/Desktop/Redes2/practica1/iris.txt", F_OK) == -1) { //TODO total_path
+    if(access(total_path, F_OK) == -1) {
       enviarError(connval, NOT_FOUND, server);
       continue;
     }
 
     //Comprobamos si se da soporte a la extension
     for(n_ext=0; n_ext<NUM_EXTENSIONES; n_ext++){
-      if(strcmp(extensiones[n_ext].ext, strchr(mini_path, '.') + 1) != 0) {
-        syslog(LOG_INFO, "Extension: %s %s %i", extensiones[n_ext].ext, strchr(mini_path, '.') + 1, n_ext); //wtf
+      if(strcmp(extensiones[n_ext].ext, strchr(mini_path, '.') + 1) == 0) {
+        syslog(LOG_INFO, "Extension: %s %s %i", extensiones[n_ext].ext, strchr(mini_path, '.') + 1, n_ext); //quitar
         break;
       }
     }
@@ -167,12 +174,12 @@ void procesarPeticiones(int connval, char *server, char* server_root){
       continue;
     }
 
-    funcion_procesa(connval, server, "/home/dmcarmen/Desktop/Redes2/practica1/iris.txt", &extensiones[n_ext], vars); //TODO total_path
+    funcion_procesa(connval, server,total_path, &extensiones[n_ext], vars);
     free(vars);
     free(mini_path);
-    break;
   }
 
+  return 0;
 }
 
 void GETProcesa(int connval, char* server, char *path, extension *ext, char *vars) {

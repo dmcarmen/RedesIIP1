@@ -13,7 +13,7 @@ int socket_server_ini(int listen_port, int max_clients)
   syslog (LOG_INFO, "Creating socket");
   if ((sockval = socket(AF_INET, SOCK_STREAM, 0)) < 0){
     syslog(LOG_ERR, "Error creating socket");
-    exit(EXIT_FAILURE);
+    return -1;
   }
 
   /* Se inicializa la estructura addr*/
@@ -36,14 +36,14 @@ int socket_server_ini(int listen_port, int max_clients)
   syslog (LOG_INFO, "Binding socket");
   if (bind(sockval, (struct sockaddr *)&addr, sizeof(addr)) < 0){
     syslog(LOG_ERR, "Error binding socket");
-    exit(EXIT_FAILURE);
+    return -1;
   }
 
   /* Se comienza a escuchar */
   syslog (LOG_INFO, "Listening connections");
   if (listen(sockval, max_clients) < 0){
     syslog(LOG_ERR, "Error listenining");
-    exit(EXIT_FAILURE);
+    return -1;
   }
   return sockval;
 }
