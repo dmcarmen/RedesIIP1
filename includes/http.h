@@ -24,6 +24,6 @@ struct metodo {
 	void (*funcion)(int , char*, char*, extension*, char*); //meter parametros
 };
 
-int procesarPeticiones(int connval, char *server_signature, char* server_root);
+int procesarPeticiones(int connval, char *server_signature, char* server_root, int * stop);
 
 #endif

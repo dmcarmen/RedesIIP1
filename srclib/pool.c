@@ -6,15 +6,15 @@ void * thread_accept(void * pool){
   pool_thread *p = (pool_thread *)pool;
   int connval;
 
-  while(1){
+  while(p->stop == 0) {
     connval = socket_accept(p->sockval);
     if(connval < 0) pthread_exit(NULL); //TODO ver qué error concreto
-    if(procesarPeticiones(connval, p->server_signature, p->server_root)==-1) {
+    if(procesarPeticiones(connval, p->server_signature, p->server_root, &p->stop)==-1) {
       close(connval);
       pthread_exit(NULL);
     }
+    syslog(LOG_INFO, "Conexion cerrada");
     close(connval);
-    //wait_finished_services();
   }
   pthread_exit(NULL);
 }
@@ -64,8 +64,8 @@ pool_thread * pool_create(int sockval, char* server_signature, char* server_root
 void pool_free(pool_thread * pool) {
   int i;
 
-  syslog (LOG_INFO, "Cleaning");
-  //TODO pensar
+  syslog(LOG_INFO, "Cleaning");
+
   pool->stop = 1;
 
   for(i=0; i<pool->num_threads; i++){

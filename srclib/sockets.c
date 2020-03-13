@@ -8,6 +8,7 @@ int socket_server_ini(int listen_port, int max_clients)
 {
   int sockval;
   struct sockaddr_in addr;
+  int option=1;
 
   /* Se crea el socket*/
   syslog (LOG_INFO, "Creating socket");
@@ -22,20 +23,18 @@ int socket_server_ini(int listen_port, int max_clients)
   addr.sin_addr.s_addr = htonl(INADDR_ANY); /* Accept all adresses */
   bzero((void *) &(addr.sin_zero), 8);
 
-  /*int yes = 1;
-  if (setsockopt(sockval, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(yes)) < 0) {
-    perror("setsockopt");
-    exit(EXIT_FAILURE);
+
+  if(setsockopt(sockval,SOL_SOCKET,(SO_REUSEPORT | SO_REUSEADDR),(char*)&option,sizeof(option)) < 0) {
+    syslog(LOG_ERR, "Error setsockopt failed");
+    close(sockval);
+    return -1;
   }
-  if (setsockopt(sockval, SOL_SOCKET, SO_REUSEPORT, (const char*)&yes, sizeof(yes)) < 0){
-    perror("setsockopt(SO_REUSEPORT) failed");
-    exit(EXIT_FAILURE);
-  }*/
 
   /* Se liga el puerto al socket */
   syslog (LOG_INFO, "Binding socket");
   if (bind(sockval, (struct sockaddr *)&addr, sizeof(addr)) < 0){
     syslog(LOG_ERR, "Error binding socket");
+    close(sockval);
     return -1;
   }
 
@@ -43,6 +42,7 @@ int socket_server_ini(int listen_port, int max_clients)
   syslog (LOG_INFO, "Listening connections");
   if (listen(sockval, max_clients) < 0){
     syslog(LOG_ERR, "Error listenining");
+    close(sockval);
     return -1;
   }
   return sockval;

@@ -75,8 +75,7 @@ void enviarError(int connval, int error, char *server) {
   free(date);
 }
 
-/*TODO cuando parar de procesar peticiones, cuerpo*/
-int procesarPeticiones(int connval, char *server, char* server_root){
+int procesarPeticiones(int connval, char *server, char* server_root, int * stop){
   char buf[4096], *method, *path = NULL, total_path[100], *q_path = NULL, *mini_path = NULL, *body = NULL, *aux_path=NULL;
   char *vars, *aux_q = NULL;
   int pret, minor_version;
@@ -86,11 +85,9 @@ int procesarPeticiones(int connval, char *server, char* server_root){
   int n_ext, n_met;
   void (*funcion_procesa)(int , char*, char*, extension*, char*);
 
-  while(1){
-    //TODO Esto esta distinto, cuidao
+  while(*stop == 0){
     bzero(buf,sizeof(char)*4096);
     rret = recv(connval,buf, sizeof(buf), 0);
-    syslog(LOG_INFO, "REQUEST: %s %d", buf, (int)rret);
     if(rret == 0) return 0;
 
     if(rret == -1) {
@@ -101,6 +98,8 @@ int procesarPeticiones(int connval, char *server, char* server_root){
       syslog(LOG_ERR, "Error recv.");
       return 0;
     }
+
+    syslog(LOG_INFO, "REQUEST: %s %d", buf, (int)rret);
 
     num_headers = sizeof(headers) / sizeof(headers[0]);
 
