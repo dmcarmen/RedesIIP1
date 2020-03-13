@@ -11,9 +11,9 @@
 #include <sys/stat.h>
 #include <time.h>
 
-#define NUM_EXTENSIONES 11
+#define NUM_EXTENSIONES 13
 #define NUM_METODOS 3
-#define MAX_BUF 100
+#define MAX_BUF 1000
 
 extension extensiones[] = {
   {"txt", "text/plain"},
@@ -26,7 +26,9 @@ extension extensiones[] = {
   {"mpg","video/mpeg"},
   {"doc","application/msword"},
   {"docx","application/msword"},
-  {"pdf","application/pdf"}
+  {"pdf","application/pdf"},
+  {"py", "text/plain"},
+  {"php", "text/plain"}
 };
 
 void GETProcesa(int connval, char* server, char *path, extension *ext, char *vars);
@@ -139,7 +141,7 @@ int procesarPeticiones(int connval, char *server, char* server_root){
     // Si hay ? limpiamos las variables que se pasaran al scrpt y guardamos el path antes de la ?
     else{
       syslog(LOG_INFO, "q_path: %s", q_path);
-      vars = clean_vars(strdup(q_path + 1));
+      vars = clean_vars(strdup(q_path));
       mini_path = strndup(aux_path, (int)((q_path - aux_path) *sizeof(char))); //TODO no se usar cadenas comprobar bien calculo:), si no token maybe, miedo a que no nul terminen
     }
     free(aux_path);
@@ -157,6 +159,8 @@ int procesarPeticiones(int connval, char *server, char* server_root){
     //Comprobamos si el recurso existe
     if(access(total_path, F_OK) == -1) {
       enviarError(connval, NOT_FOUND, server);
+      free(vars);
+      free(mini_path);
       continue;
     }
 
@@ -171,6 +175,8 @@ int procesarPeticiones(int connval, char *server, char* server_root){
     if(n_ext == NUM_EXTENSIONES) {
       syslog(LOG_INFO, "Extension incorrecta.");
       enviarError(connval, BAD_REQUEST, server);
+      free(vars);
+      free(mini_path);
       continue;
     }
 
@@ -257,10 +263,17 @@ void POSTProcesa(int connval, char* server, char *path, extension *ext, char *va
 
   //Corremos el script y eviamos la cabecera y la respuesta
   answer = run_script(connval, server, path, ext, vars);
+  if(!answer){
+    syslog(LOG_ERR, "Error running the script.");
+    enviarError(connval, INTERNAL_SERVER, server);
+    free(date);
+    free(modified);
+    return;
+  }
   len = strlen(answer);
   sprintf(res,"HTTP/1.1 200 OK\r\nDate: %s\r\nServer: %s\r\nLast-Modified: %s\r\nContent-Length: %d\r\nContent-Type: %s\r\nConnection: keep-alive\r\n\r\n", date, server, modified, len, ext->tipo);
   send(connval, res, strlen(res), 0);
-  send(connval, answer, strlen(answer), 0);
+  send(connval, answer, len, 0);
 
   free(date);
   free(modified);
@@ -287,6 +300,7 @@ char* run_script(int connval, char* server, char *path, extension *ext, char *va
   FILE *fp;
   char command[MAX_BUF]; //TODO 100?
   char *ret;
+  int len;
 
   if(strcmp(ext->ext,"py") ==0)
     sprintf(command, "echo \"%s\" | %s %s", vars, PY, path);
@@ -304,25 +318,29 @@ char* run_script(int connval, char* server, char *path, extension *ext, char *va
     return NULL;
   }
 
-  ret = (char*)malloc(sizeof(char)*MAX_BUF);
+  ret = (void*)calloc((MAX_BUF + 1), sizeof(char));
   if(!ret){
     syslog(LOG_ERR, "Error allocating ret.");
     enviarError(connval, INTERNAL_SERVER, server);
     return NULL;
   }
 
-  ret = fgets(ret, MAX_BUF, fp);
-  if (!ret){
+  len = fread(ret, 1, MAX_BUF, fp);
+  if (len < 0){
     syslog(LOG_ERR, "Error reading the pipe.");
     enviarError(connval, INTERNAL_SERVER, server);
+    free(ret);
+    pclose(fp);
+    return NULL;
   }
 
   if (pclose(fp) == -1){
     syslog(LOG_ERR, "Error closing the pipe.");
+    free(ret);
     enviarError(connval, INTERNAL_SERVER, server);
     return NULL;
   }
-  return ret;
+  return (char*)ret;
 }
 
 
@@ -365,7 +383,7 @@ char* clean_vars(char *cuerpo)
     return NULL;
   limpio = strdup(cuerpo);
   ret = cuerpo;
-  //var1=manolo&var2=paco&var3=men
+  //?var1=manolo&var2=paco&var3=men
   i = 0;
   while(flag)
   {
@@ -391,6 +409,8 @@ char* clean_vars(char *cuerpo)
     i++;
   }
   limpio[i] = 0;
-  free(cuerpo);
+  //si viene de GET hemos creado una variable auxiliar que tenemos que liberar
+  if(*cuerpo == '?')
+    free(cuerpo);
   return limpio;
 }
