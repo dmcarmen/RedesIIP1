@@ -137,12 +137,17 @@ int procesarPeticiones(int connval, char *server, char* server_root, int * stop)
       vars = clean_vars(body);
       mini_path = strdup(aux_path);
     }
-    // Si hay ? limpiamos las variables que se pasaran al scrpt y guardamos el path antes de la ?
+    // Si hay ? cogemos las variables del cuespo si es POST y de despues
+    // de la ? si es GET y guardamos el path antes de la ?
     else{
-      syslog(LOG_INFO, "q_path: %s", q_path);
-      aux_q = strdup(q_path);
-      vars = clean_vars(aux_q);
-      free(aux_q);
+      if(!(*body)){ //GET
+        syslog(LOG_INFO, "q_path: %s", q_path);
+        aux_q = strdup(q_path);
+        vars = clean_vars(aux_q);
+        free(aux_q);
+      }
+      else //POST
+        vars = clean_vars(body);
       mini_path = strndup(aux_path, (int)((q_path - aux_path) *sizeof(char))); //TODO no se usar cadenas comprobar bien calculo:), si no token maybe, miedo a que no nul terminen
     }
     free(aux_path);
