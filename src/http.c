@@ -190,7 +190,7 @@ int procesarPeticiones(int connval, char *server, char* server_root){
 
 void GETProcesa(int connval, char* server, char *path, extension *ext, char *vars) {
   int fd;
-  char *date, *modified, res[1000];
+  char *date, *modified, res[1000], *answer;
   int len, count;
   struct stat file_stat;
 
@@ -209,37 +209,59 @@ void GETProcesa(int connval, char* server, char *path, extension *ext, char *var
     return;
   }
 
-  //Abrimos fichero
-  fd = open(path, O_RDONLY);
-  if(fd==-1){
-    enviarError(connval,INTERNAL_SERVER, server);
+  //Si tenemos variables y es un script lo corremos
+  if (vars != NULL && (strcmp(ext->ext, "py") == 0 || strcmp(ext->ext, "php") == 0)){
+    //Corremos el script
+    answer = run_script(connval, server, path, ext, vars);
+    if(!answer){
+      syslog(LOG_ERR, "Error running the script.");
+      enviarError(connval, INTERNAL_SERVER, server);
+      free(date);
+      free(modified);
+      return;
+    }
+    //Enviamos la cabecera y la respuesta
+    len = strlen(answer);
+    sprintf(res,"HTTP/1.1 200 OK\r\nDate: %s\r\nServer: %s\r\nLast-Modified: %s\r\nContent-Length: %d\r\nContent-Type: %s\r\nConnection: keep-alive\r\n\r\n", date, server, modified, len, ext->tipo);
+    send(connval, res, strlen(res), 0);
+    send(connval, answer, len, 0);
+
     free(date);
     free(modified);
+    free(answer);
     return;
-  }
+  } //si no devolvemos el archivo
+  else{
+    //Abrimos fichero
+    fd = open(path, O_RDONLY);
+    if(fd==-1){
+      enviarError(connval,INTERNAL_SERVER, server);
+      free(date);
+      free(modified);
+      return;
+    }
 
-  //Calculamos su tam
-  if(fstat(fd, &file_stat) == -1) {
-    //Error obteniendo info
+    //Calculamos su tam
+    if(fstat(fd, &file_stat) == -1) {
+      //Error obteniendo info
+      free(date);
+      free(modified);
+      return;
+    }
+    len = file_stat.st_size;
+
+    //Enviamos el mensaje con el tamaño del fichero
+    sprintf(res,"HTTP/1.1 200 OK\r\nDate: %s\r\nServer: %s\r\nLast-Modified: %s\r\nContent-Length: %d\r\nContent-Type: %s\r\nConnection: keep-alive\r\n\r\n", date, server, modified, len, ext->tipo);
+    send(connval, res, strlen(res), 0);
+
+    //Enviamos los datos del fichero
+    while((count = read(fd,res,sizeof(res))) > 0 ){
+      send(connval,res,count,0);
+    }
     free(date);
     free(modified);
-    return;
+    close(fd);
   }
-
-  len = file_stat.st_size;
-
-  //Enviamos el mensaje con el tamaño del fichero
-  sprintf(res,"HTTP/1.1 200 OK\r\nDate: %s\r\nServer: %s\r\nLast-Modified: %s\r\nContent-Length: %d\r\nContent-Type: %s\r\nConnection: keep-alive\r\n\r\n", date, server, modified, len, ext->tipo);
-  send(connval, res, strlen(res), 0);
-
-  //Enviamos los datos del fichero
-  while((count = read(fd,res,sizeof(res))) > 0 ){
-    send(connval,res,count,0);
-  }
-
-  free(date);
-  free(modified);
-  close(fd);
 }
 
 void POSTProcesa(int connval, char* server, char *path, extension *ext, char *vars){ //buf+num
@@ -261,7 +283,7 @@ void POSTProcesa(int connval, char* server, char *path, extension *ext, char *va
     return;
   }
 
-  //Corremos el script y eviamos la cabecera y la respuesta
+  //Corremos el script
   answer = run_script(connval, server, path, ext, vars);
   if(!answer){
     syslog(LOG_ERR, "Error running the script.");
@@ -270,6 +292,7 @@ void POSTProcesa(int connval, char* server, char *path, extension *ext, char *va
     free(modified);
     return;
   }
+  //Enviamos la cabecera y la respuesta
   len = strlen(answer);
   sprintf(res,"HTTP/1.1 200 OK\r\nDate: %s\r\nServer: %s\r\nLast-Modified: %s\r\nContent-Length: %d\r\nContent-Type: %s\r\nConnection: keep-alive\r\n\r\n", date, server, modified, len, ext->tipo);
   send(connval, res, strlen(res), 0);
