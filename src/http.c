@@ -34,7 +34,7 @@ extension extensiones[] = {
 void GETProcesa(int connval, char* server, char *path, extension *ext, char *vars);
 void POSTProcesa(int connval, char* server, char *path, extension *ext, char *vars);
 void OPTIONSProcesa(int connval, char* server, char *path, extension *ext, char *vars);
-char* clean_vars(char *cuerpo);
+char* clean_vars(char *body);
 char* FechaActual();
 char* FechaModificado(char * path);
 char* run_script(int connval, char* server, char *path, extension *ext, char *vars);
@@ -47,7 +47,7 @@ metodo metodos[] = {
 };
 
 void enviarError(int connval, int error, char *server) {
-  char res[1000], *date;
+  char res[MAX_BUF], *date;
 
   date = FechaActual();
   if ( date == NULL ) {
@@ -71,15 +71,14 @@ void enviarError(int connval, int error, char *server) {
     default:
       break;
   }
-syslog(LOG_INFO, "Sending %s", res);
   send(connval, res, strlen(res), 0);
   free(date);
 }
 
 /*TODO cuando parar de procesar peticiones, cuerpo*/
 int procesarPeticiones(int connval, char *server, char* server_root){
-  char buf[4096], *method, *path = NULL, total_path[100], *q_path = NULL, *mini_path = NULL, *cuerpo = NULL, *aux_path=NULL;
-  char *vars;
+  char buf[4096], *method, *path = NULL, total_path[100], *q_path = NULL, *mini_path = NULL, *body = NULL, *aux_path=NULL;
+  char *vars, *aux_q = NULL;
   int pret, minor_version;
   struct phr_header headers[100];
   size_t method_len, path_len, num_headers;
@@ -96,9 +95,10 @@ int procesarPeticiones(int connval, char *server, char* server_root){
 
     if(rret == -1) {
       if(errno == EINTR){
+        syslog(LOG_INFO, "Signal received, closing connection.");
         return rret;
       }
-      syslog(LOG_ERR, "Error recv");
+      syslog(LOG_ERR, "Error recv.");
       return 0;
     }
 
@@ -114,8 +114,8 @@ int procesarPeticiones(int connval, char *server, char* server_root){
     }
     //Guardamos el cuerpo de la petición, que se encuetra en el buffer más los bytes leidos por phr_parse_request
     if (pret > 1)
-      cuerpo = buf + pret;
-    syslog(LOG_INFO, "Body: %s", cuerpo);
+      body = buf + pret;
+    syslog(LOG_INFO, "Body: %s", body);
     //Comprobamos que se da soporte el método
     for(n_met=0; n_met<NUM_METODOS; n_met++){
       if(strncmp(metodos[n_met].name, method, method_len) == 0) {
@@ -135,13 +135,15 @@ int procesarPeticiones(int connval, char *server, char* server_root){
     q_path = strchr(aux_path, '?');
     // Si no encuentra ? si es POST cogera el cuerpo y lo limpiara, vars sera NULL
     if (q_path == NULL){
-      vars = clean_vars(cuerpo);
+      vars = clean_vars(body);
       mini_path = strdup(aux_path);
     }
     // Si hay ? limpiamos las variables que se pasaran al scrpt y guardamos el path antes de la ?
     else{
       syslog(LOG_INFO, "q_path: %s", q_path);
-      vars = clean_vars(strdup(q_path));
+      aux_q = strdup(q_path);
+      vars = clean_vars(aux_q);
+      free(aux_q);
       mini_path = strndup(aux_path, (int)((q_path - aux_path) *sizeof(char))); //TODO no se usar cadenas comprobar bien calculo:), si no token maybe, miedo a que no nul terminen
     }
     free(aux_path);
@@ -190,7 +192,7 @@ int procesarPeticiones(int connval, char *server, char* server_root){
 
 void GETProcesa(int connval, char* server, char *path, extension *ext, char *vars) {
   int fd;
-  char *date, *modified, res[1000], *answer;
+  char *date, *modified, res[MAX_BUF], *answer;
   int len, count;
   struct stat file_stat;
 
@@ -265,7 +267,7 @@ void GETProcesa(int connval, char* server, char *path, extension *ext, char *var
 }
 
 void POSTProcesa(int connval, char* server, char *path, extension *ext, char *vars){ //buf+num
-  char *answer, *date, res[1000], *modified;
+  char *answer, *date, res[MAX_BUF], *modified;
   int len;
 
   //Calculamos la fecha actual
@@ -304,7 +306,7 @@ void POSTProcesa(int connval, char* server, char *path, extension *ext, char *va
 }
 
 void OPTIONSProcesa(int connval, char* server, char *path, extension *ext, char *vars){
-  char *date, res[1000];
+  char *date, res[MAX_BUF];
 
   //Calculamos la fecha actual
   date = FechaActual();
@@ -397,28 +399,28 @@ char * FechaModificado(char * path){
   return date;
 }
 
-char* clean_vars(char *cuerpo)
+char* clean_vars(char *body)
 {
-  char *limpio, *ret;
+  char *clean_str, *ret;
   int flag = 1, i, j;
 
-  if(!cuerpo || *cuerpo == 0)
+  if(!body || *body == 0)
     return NULL;
-  limpio = strdup(cuerpo);
-  ret = cuerpo;
+  clean_str = strdup(body);
+  ret = body;
   //?var1=manolo&var2=paco&var3=men
   i = 0;
   while(flag)
   {
     //busca primer =
     if(!(ret = strchr(ret, '='))){
-      free(limpio);
+      free(clean_str);
       return NULL;
     }
     //guarda hasta encontrar & o fin de cadena
     for (j = 1; ret[j] != '&' && ret[j] != 0; j++)
     {
-      limpio[i] = ret[j];
+      clean_str[i] = ret[j];
       i++;
     }
     //si es fin de cadena se va del bucle
@@ -428,12 +430,9 @@ char* clean_vars(char *cuerpo)
       break;
     }
     ret = ret + j;
-    limpio[i] = ' ';
+    clean_str[i] = ' ';
     i++;
   }
-  limpio[i] = 0;
-  //si viene de GET hemos creado una variable auxiliar que tenemos que liberar
-  if(*cuerpo == '?')
-    free(cuerpo);
-  return limpio;
+  clean_str[i] = 0;
+  return clean_str;
 }
