@@ -1,4 +1,3 @@
-//gcc -Wextra -Wall -g -I../includes daemon.c
 #ifndef DAEMON_H_
 #define DAEMON_H_
 

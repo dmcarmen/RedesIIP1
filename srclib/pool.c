@@ -1,6 +1,6 @@
-//valgrind --leak-check=full --show-leak-kinds=all --trace-children=yes ./bin/main
-
 #include "pool.h"
+#include <syslog.h>
+#include <unistd.h>
 
 void * thread_accept(void * pool){
   pool_thread *p = (pool_thread *)pool;
@@ -8,7 +8,11 @@ void * thread_accept(void * pool){
 
   while(p->stop == 0) {
     connval = socket_accept(p->sockval);
-    if(connval < 0) pthread_exit(NULL); //TODO ver qué error concreto
+    /* Si connval es -2 no se ha realizado el accept por la interrupcion de una
+    * senial. Es decir, el hilo tiene que terminar. */
+    if(connval == -2) pthread_exit(NULL);
+    /* Si connval es -1 se ha producido un error mientras estaba en el accept.*/
+    if(connval == -1) continue;
     if(procesarPeticiones(connval, p->server_signature, p->server_root, &p->stop)==-1) {
       close(connval);
       pthread_exit(NULL);
@@ -69,7 +73,7 @@ void pool_free(pool_thread * pool) {
   pool->stop = 1;
 
   for(i=0; i<pool->num_threads; i++){
-    pthread_kill(pool->threads[i], SIGINT);
+    pthread_kill(pool->threads[i], SIGUSR1);
   }
 
   for(i=0; i<pool->num_threads; i++){

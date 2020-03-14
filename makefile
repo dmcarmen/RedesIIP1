@@ -12,4 +12,4 @@ clean:
 	rm -rf *.o *.dot $(EJS)
 
 main: $(LIBS)
-	$(CC) $(CFLAGS) main.c $(LIBS) $(SRCS) -o bin/main -lpthread -lconfuse
+	$(CC) $(CFLAGS) main.c $(LIBS) $(SRCS) -o main -lpthread -lconfuse

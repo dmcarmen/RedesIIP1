@@ -1,18 +1,21 @@
 #include "sockets.h"
 #include "pool.h"
-#include <signal.h>
 #include "confuse.h"
+#include <signal.h>
+#include <syslog.h>
+#include <unistd.h>
 
-int flag=1;
+/*Manejador vacío para SIGINT y SIGUSR1.*/
+void manejador(int sig){}
 
-void manejador(int sig) {
-  flag=0;
-}
-
+/*
+* Funcion principal del servidor web.
+*/
 int main(int argc, char const *argv[]) {
   int sockval;
   pool_thread * pool;
   struct sigaction act;
+  sigset_t set, old_set;
 
   static char *server_root = NULL;
   static long int max_clients = 0;
@@ -20,7 +23,7 @@ int main(int argc, char const *argv[]) {
   static char *server_signature = NULL;
   cfg_t *cfg;
 
-  /* Leemos el fichero de configuracion. */
+  /* Lee el fichero de configuracion. */
   cfg_opt_t opts[] = {
     CFG_SIMPLE_STR("server_root", &server_root),
     CFG_SIMPLE_INT("max_clients", &max_clients),
@@ -30,7 +33,7 @@ int main(int argc, char const *argv[]) {
   };
 
   cfg = cfg_init(opts, 0);
-  if(cfg_parse(cfg, "server.conf") == CFG_PARSE_ERROR) //cuidado dond corres donde esta
+  if(cfg_parse(cfg, "server.conf") == CFG_PARSE_ERROR)
   {
     syslog(LOG_ERR, "Error parsing server.conf");
     return 1;
@@ -39,29 +42,46 @@ int main(int argc, char const *argv[]) {
   syslog(LOG_INFO, "Server_root: %s, server_signature: %s, max_clients: %ld, listen_ports: %ld",
 		  server_root, server_signature, max_clients, listen_port); //
 
-  /* Levantamos el manejador para poder cerrar el servidor con SIGINT. */
+  /* Manejo de señales. Se bloquea SIGINT a todos los hilos y se atrapa SIGUSR1.*/
+  /* Levanta el manejador vacio. */
   act.sa_handler = manejador;
   sigemptyset(&(act.sa_mask));
   act.sa_flags = 0;
 
+  /* Inicializa el conjunto de señales al conjunto vacio. */
+  sigemptyset(&set);
+  /* Aniade SIGINT. */
+  sigaddset(&set, SIGINT);
+  /* Bloqueo de las seniales del set. */
+  pthread_sigmask(SIG_SETMASK, &set, &old_set);
+  /* Asigna el manejador de SIGINT.*/
   if (sigaction(SIGINT, &act, NULL) < 0) {
     syslog(LOG_ERR, "Error sigaction");
-    return 0;
+    return 1;
   }
+  /* Asigna el manejador de SIGUSR1. */
+  if (sigaction(SIGUSR1, &act, NULL) < 0) {
+    syslog(LOG_ERR, "Error sigaction");
+    return 1;
+  }
+  /* La senial SIGPIPE es ignorada. */
+  signal(SIGPIPE, SIG_IGN);
 
-  /* Abrimos el socket y creamos los hilos del pool estatico. */
+  /* Se abre el socket. */
   sockval = socket_server_ini(listen_port, max_clients);
   if(sockval == -1){
+    syslog(LOG_ERR, "Error socket ini");
     free(server_root);
     free(server_signature);
-    return -1;
+    return 1;
   }
+  /* Se crean los hilos del pool estatico. */
   pool = pool_create(sockval, server_signature, server_root);
 
-  /* El servidor corre hasta que le llega SIGINT. */
-  while(flag);
+  /* El servidor se suspende hasta que le llega SIGINT. */
+  sigsuspend(&old_set);
 
-  /* Liberamos los recursos. */
+  /* Se liberan los recursos. */
   pool_free(pool);
   free(server_root);
   free(server_signature);

@@ -48,25 +48,25 @@ metodo metodos[] = {
 
 void enviarError(int connval, int error, char *server) {
   char res[MAX_BUF], *date;
+  char *mensaje = "HTTP/1.1 %s\r\nDate: %s\r\nServer: %s\r\nConnection: keep-alive\r\nContent-Type: text/html\r\nContent-Length: %d\r\n\r\n<!DOCTYPE HTML PUBLIC '-//IETF//DTD HTML 2.0//EN'><html><head><title>%s</title></head><body><h1>%s</h1><p>%s</p></body></html>";
 
   date = FechaActual();
   if ( date == NULL ) {
     return;
   }
-  //TODO htmls
   syslog(LOG_INFO, "Sending error %d to the client.", error);
   switch(error){
     case BAD_REQUEST:
-      sprintf(res, "HTTP/1.1 400 Bad Request\r\nDate: %s\r\nServer: %s\r\nConnection: keep-alive\r\n\r\n",date,server);
+      sprintf(res, mensaje,"400 Bad Request",date,server,196,"400 Bad Request","Bad Request","The request could not be understood by the server.");
       break;
     case NOT_FOUND:
-      sprintf(res,"HTTP/1.1 404 Not Found\r\nDate: %s\r\nServer: %s\r\nConnection: close\r\nContent-Type: text/html\r\nContent-Length: 138\r\n\r\n<html><head>\n<title>404 Not Found</title>\n</head><body>\n<h1>Not Found</h1>\nThe requested URL was not found on this server.\n</body></html>\n",date,server);
+      sprintf(res, mensaje,"404 Not Found",date,server,189,"404 Not Found","Not Found","The requested URL was not found on this server.");
       break;
     case INTERNAL_SERVER:
-      sprintf(res,"HTTP/1.1 500 Internal Server Error\r\nDate: %s\r\nServer: %s\r\nConnection: keep-alive\r\n\r\n",date,server);
+      sprintf(res, mensaje,"500 Internal Server Error",date,server,206,"500 Internal Server Error","Internal Server Error","An unexpected condition was encountered.");
       break;
     case NOT_IMPLEMENTED:
-      sprintf(res,"HTTP/1.1 501 Not Implemented\r\nDate: %s\r\nServer: %s\r\nConnection: keep-alive\r\n\r\n",date,server);
+      sprintf(res, mensaje,"501 Not Implemented",date,server,246,"501 Method Not Implemented","Method Not Implemented","The server does not support the functionality required to fulfill the request.");
       break;
     default:
       break;
@@ -76,8 +76,8 @@ void enviarError(int connval, int error, char *server) {
 }
 
 int procesarPeticiones(int connval, char *server, char* server_root, int * stop){
-  char buf[4096], *method, *path = NULL, total_path[100], *q_path = NULL, *mini_path = NULL, *body = NULL, *aux_path=NULL;
-  char *vars, *aux_q = NULL;
+  char buf[4096], *method = NULL, *path = NULL, total_path[100], *q_path = NULL, *mini_path = NULL, *body = NULL, *aux_path=NULL;
+  char *vars = NULL, *aux_q = NULL;
   int pret, minor_version;
   struct phr_header headers[100];
   size_t method_len, path_len, num_headers;
