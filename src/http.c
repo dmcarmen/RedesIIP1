@@ -217,14 +217,14 @@ void GET_process(int connval, char* server, char *path, extension *ext, char *va
   /* Calculamos la última fecha en la que fue modificado. */
   modified = get_mod_date(path);
   if (modified == NULL) {
-    send_error(connval, BAD_REQUEST, server); //TODO check si badrequest o internalerror
+    send_error(connval, INTERNAL_ERROR, server); //TODO check si badrequest o internalerror
     free(date);
     return;
   }
 
-  //Si tenemos variables y es un script lo corremos
+  /*Si tenemos variables y es un script lo corremos. */
   if (vars != NULL && (strcmp(ext->ext, "py") == 0 || strcmp(ext->ext, "php") == 0)){
-    //Corremos el script
+    /* Corremos el script. */
     answer = run_script(connval, server, path, ext, vars);
     if(!answer){
       syslog(LOG_ERR, "Error running the script.");
@@ -233,7 +233,7 @@ void GET_process(int connval, char* server, char *path, extension *ext, char *va
       free(modified);
       return;
     }
-    //Enviamos la cabecera y la respuesta
+    /* Enviamos la cabecera y la respuesta. */
     len = strlen(answer);
     sprintf(res,"HTTP/1.1 200 OK\r\nDate: %s\r\nServer: %s\r\nLast-Modified: %s\r\nContent-Length: %d\r\nContent-Type: %s\r\nConnection: keep-alive\r\n\r\n", date, server, modified, len, ext->tipo);
     send(connval, res, strlen(res), 0);
@@ -243,9 +243,10 @@ void GET_process(int connval, char* server, char *path, extension *ext, char *va
     free(modified);
     free(answer);
     return;
-  } //si no devolvemos el archivo
+  }
+  /* Si no es un script devolvemos el archivo */
   else{
-    //Abrimos fichero
+    /* Abrimos el fichero. */
     fd = open(path, O_RDONLY);
     if(fd==-1){
       send_error(connval,INTERNAL_SERVER, server);
@@ -254,20 +255,20 @@ void GET_process(int connval, char* server, char *path, extension *ext, char *va
       return;
     }
 
-    //Calculamos su tam
+    /* Calculamos su tam. */
     if(fstat(fd, &file_stat) == -1) {
-      //Error obteniendo info
+      syslog(LOG_ERR, "Error fstat");
       free(date);
       free(modified);
       return;
     }
     len = file_stat.st_size;
 
-    //Enviamos el mensaje con el tamaño del fichero
+    /* Enviamos el mensaje con el tamaño del fichero. */
     sprintf(res,"HTTP/1.1 200 OK\r\nDate: %s\r\nServer: %s\r\nLast-Modified: %s\r\nContent-Length: %d\r\nContent-Type: %s\r\nConnection: keep-alive\r\n\r\n", date, server, modified, len, ext->tipo);
     send(connval, res, strlen(res), 0);
 
-    //Enviamos los datos del fichero
+    /* Enviamos los datos del fichero. */
     while((count = read(fd,res,sizeof(res))) > 0 ){
       send(connval,res,count,0);
     }
@@ -277,26 +278,29 @@ void GET_process(int connval, char* server, char *path, extension *ext, char *va
   }
 }
 
+/*
+* Función que procesa las peticiones de tipo POST.
+*/
 void POST_process(int connval, char* server, char *path, extension *ext, char *vars){ //buf+num
   char *answer, *date, res[MAX_BUF], *modified;
   int len;
 
-  //Calculamos la fecha actual
+  /* Calculamos la fecha actual. */
   date = get_date();
   if (date == NULL) {
     send_error(connval,INTERNAL_SERVER, server);
     return;
   }
 
-  //Calculamos la última fecha en la que fue modificado
+  /* Calculamos la última fecha en la que fue modificado. */
   modified = get_mod_date(path);
   if (modified == NULL) {
-    send_error(connval,BAD_REQUEST, server); //TODO check si badrequest o internalerror
+    send_error(connval,INTERNAL_ERROR, server); //TODO check si badrequest o internalerror
     free(date);
     return;
   }
 
-  //Corremos el script
+  /* Corremos el script. */
   answer = run_script(connval, server, path, ext, vars);
   if(!answer){
     syslog(LOG_ERR, "Error running the script.");
@@ -305,7 +309,7 @@ void POST_process(int connval, char* server, char *path, extension *ext, char *v
     free(modified);
     return;
   }
-  //Enviamos la cabecera y la respuesta
+  /* Enviamos la cabecera y la respuesta. */
   len = strlen(answer);
   sprintf(res,"HTTP/1.1 200 OK\r\nDate: %s\r\nServer: %s\r\nLast-Modified: %s\r\nContent-Length: %d\r\nContent-Type: %s\r\nConnection: keep-alive\r\n\r\n", date, server, modified, len, ext->tipo);
   send(connval, res, strlen(res), 0);
@@ -316,37 +320,46 @@ void POST_process(int connval, char* server, char *path, extension *ext, char *v
   free(answer);
 }
 
+/*
+* Función que procesa las peticiones de tipo OPTIONS.
+*/
 void OPTIONS_process(int connval, char* server, char *path, extension *ext, char *vars){
   char *date, res[MAX_BUF];
 
-  //Calculamos la fecha actual
+  /* Calculamos la fecha actual. */
   date = get_date();
   if ( date == NULL ) {
     send_error(connval, INTERNAL_SERVER, server);
     return;
   }
 
-  //Enviamos el mensaje con el tamaño del fichero
+  /* Enviamos el mensaje con los metodos implementados. */
   sprintf(res,"HTTP/1.1 200 OK\r\nDate: %s\r\nServer: %s\r\nAllow: GET, POST, OPTIONS\r\nConnection: keep-alive\r\n\r\n",date,server);
   send(connval, res, strlen(res), 0);
   free(date);
 }
 
+/*
+* Función que corre un script especificado y devuelve su respuesta.
+*/
 char* run_script(int connval, char* server, char *path, extension *ext, char *vars){
   FILE *fp;
   char command[MAX_BUF]; //TODO 1000?
   char *ret;
   int len;
 
-  if(strcmp(ext->ext,"py") ==0)
+  /* Según la extension construimos el comando, en ambos casos enviando las variables
+     con un pipe para que lleguen por stdin. */
+  if(strcmp(ext->ext,"py") == 0)
     sprintf(command, "echo \"%s\" | %s %s", vars, PY, path);
-  else if(strcmp(ext->ext,"php") ==0)
+  else if(strcmp(ext->ext,"php") == 0)
     sprintf(command, "echo \"%s\" | %s %s", vars, PHP, path);
   else{
     send_error(connval, BAD_REQUEST, server);
     return NULL;
   }
 
+  /* Abrimos una pipe para leer el resultado del comando con popen. */
   fp = popen(command, "r");
   if(!fp){
     syslog(LOG_ERR, "Error creating the pipe.");
@@ -354,13 +367,14 @@ char* run_script(int connval, char* server, char *path, extension *ext, char *va
     return NULL;
   }
 
+  /* Reservamos espacio para la respuesta y la leemos. */
   ret = (void*)calloc((MAX_BUF + 1), sizeof(char));
   if(!ret){
     syslog(LOG_ERR, "Error allocating ret.");
     send_error(connval, INTERNAL_SERVER, server);
+    pclose(fp);
     return NULL;
   }
-
   len = fread(ret, 1, MAX_BUF, fp);
   if (len < 0){
     syslog(LOG_ERR, "Error reading the pipe.");
@@ -370,6 +384,7 @@ char* run_script(int connval, char* server, char *path, extension *ext, char *va
     return NULL;
   }
 
+  /* Cerramos la pipe y devolvemos el resultado. */
   if (pclose(fp) == -1){
     syslog(LOG_ERR, "Error closing the pipe.");
     free(ret);
@@ -379,7 +394,9 @@ char* run_script(int connval, char* server, char *path, extension *ext, char *va
   return (char*)ret;
 }
 
-
+/*
+* Función que devuelve la fecha actual en el formato para las cabeceras HTTP.
+*/
 char * get_date(){
   time_t now;
   char s[100];
@@ -395,6 +412,10 @@ char * get_date(){
   return date;
 }
 
+/*
+* Función que devuelve la fecha de ultima modificacion de un fichero
+* en el formato para las cabeceras HTTP.
+*/
 char * get_mod_date(char * path){
   struct stat buf;
   char s[100];
@@ -410,40 +431,49 @@ char * get_mod_date(char * path){
   return date;
 }
 
+/*
+* Función que coge las variables en el formato var1=valor1&var2=valor2... y las
+* devuelve valor1 valor2... separadas por espacios para usarlas en los scripts.
+*/
 char* clean_vars(char *body)
 {
   char *clean_str, *ret;
   int flag = 1, i, j;
 
+  /* Si body está vacío devolvemos NULL. */
   if(!body || *body == 0)
     return NULL;
+
+  /* Reservamos memoria para devolver la cadena limpia. */
   clean_str = strdup(body);
   ret = body;
-  //?var1=manolo&var2=paco&var3=men
   i = 0;
   while(flag)
   {
-    //busca primer =
+    /* Buscamos el primer = */
     if(!(ret = strchr(ret, '='))){
+      /* Si no hay = esta mal formateado. */
       free(clean_str);
       return NULL;
     }
-    //guarda hasta encontrar & o fin de cadena
+    /* Guarda la variable  (hasta encontrar & o fin de cadena). */
     for (j = 1; ret[j] != '&' && ret[j] != 0; j++)
     {
       clean_str[i] = ret[j];
       i++;
     }
-    //si es fin de cadena se va del bucle
+    /* Si es fin de cadena dejamos el bucle. */
     if(ret[j] == 0)
     {
       flag = 0;
       break;
     }
+    /* Si no es el final ponemos un espacio entre esta y la siguiente variable y seguimos. */
     ret = ret + j;
     clean_str[i] = ' ';
     i++;
   }
+  /* Cerramos la string limpia. */
   clean_str[i] = 0;
   return clean_str;
 }
