@@ -1,11 +1,4 @@
 #include "sockets.h"
-#include <netinet/in.h>
-#include <syslog.h>
-#include <strings.h>
-#include <stdlib.h>
-#include <unistd.h>
-#include <stdio.h>
-#include <errno.h>
 
 /*
 * Funcion que crea un socket TCP/IP, lo liga al puerto y lo deja escuchando.
@@ -28,7 +21,7 @@ int socket_server_ini(int listen_port, int max_clients)
 
   /* Se inicializa la estructura addr. */
   addr.sin_family = AF_INET;                /* Familia TCP/IP. */
-  addr.sin_port = htons(listen_port);   /* Se asigna el puerto. */
+  addr.sin_port = htons(listen_port);       /* Se asigna el puerto. */
   addr.sin_addr.s_addr = htonl(INADDR_ANY); /* Se aceptan todas las direcciones. */
   bzero((void *) &(addr.sin_zero), 8);
 

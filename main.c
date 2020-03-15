@@ -77,7 +77,13 @@ int main(int argc, char const *argv[]) {
   }
   /* Se crean los hilos del pool estatico. */
   pool = pool_create(sockval, server_signature, server_root);
-
+  if (pool == NULL) {
+    syslog(LOG_ERR, "Error pool create");
+    free(server_root);
+    free(server_signature);
+    close(sockval);
+    return 1;
+  }
   /* El servidor se suspende hasta que le llega SIGINT. */
   sigsuspend(&old_set);
 
