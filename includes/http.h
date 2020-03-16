@@ -13,8 +13,7 @@
 #include <sys/stat.h>
 #include <time.h>
 
-/* Constantes códigos de error. */
-#define OK 200
+/* Constantes codigos de error. */
 #define BAD_REQUEST 400
 #define NOT_FOUND 404
 #define INTERNAL_SERVER 500
@@ -43,6 +42,6 @@ struct method {
 	void (*funcion)(int , char*, char*, extension*, char*);
 };
 
-int process_petitions(int connval, char *server_signature, char* server_root, int * stop);
+void process_petitions(int connval, char *server_signature, char* server_root, int * stop);
 
 #endif

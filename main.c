@@ -40,7 +40,7 @@ int main(int argc, char const *argv[]) {
   }
   cfg_free(cfg);
   syslog(LOG_INFO, "Server_root: %s, server_signature: %s, max_clients: %ld, listen_ports: %ld",
-		  server_root, server_signature, max_clients, listen_port); //
+		  server_root, server_signature, max_clients, listen_port);
 
   /* Manejo de señales. Se bloquea SIGINT a todos los hilos y se atrapa SIGUSR1.*/
   /* Levanta el manejador vacio. */

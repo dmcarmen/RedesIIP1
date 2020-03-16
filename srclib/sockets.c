@@ -69,7 +69,7 @@ int socket_accept(int sockval)
       if(errno == EINTR){
         return -2;
       }
-      /* Si se produce un error que no sea por una señal, se devuelve -1. */
+      /* Si se produce un error que no sea por una senial, se devuelve -1. */
       syslog(LOG_ERR, "Error accepting connection");
       return -1;
   }
