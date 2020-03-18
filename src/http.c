@@ -1,5 +1,40 @@
 #include "http.h"
 
+#include "picohttpparser.h"
+#include <stdio.h>
+#include <stdlib.h>
+#include <unistd.h>
+#include <sys/socket.h>
+#include <syslog.h>
+#include <errno.h>
+#include <string.h>
+#include <fcntl.h>
+#include <sys/stat.h>
+#include <time.h>
+
+/* Constantes codigos de error. */
+#define BAD_REQUEST 400
+#define NOT_FOUND 404
+#define INTERNAL_SERVER 500
+#define NOT_IMPLEMENTED 501
+
+/* Constantes posibles scripts. */
+#define PY "python3"
+#define PHP "php -f"
+
+/* Tamanio maximo buffers de entrada y salida. */
+#define MAX_BUF 1000
+
+struct extension {
+  char * ext;
+  char * tipo;
+};
+
+struct method {
+	char *name;
+	void (*funcion)(int , char*, char*, extension*, char*);
+};
+
 void send_error(int connval, int error, char *server);
 void GET_process(int connval, char* server, char *path, extension *ext, char *vars);
 void POST_process(int connval, char* server, char *path, extension *ext, char *vars);
@@ -104,26 +139,28 @@ void process_petitions(int connval, char *server, char* server_root, int * stop)
     aux_path = strndup(path, path_len);
     /* Busca en el path si hay interrogacion (para las peticiones GET).*/
     q_path = strchr(aux_path, '?');
-    /* Si no encuentra ? si es POST cogera el cuerpo y lo limpiara,
-      si no, vars sera NULL. */
+
     syslog(LOG_INFO, "aux_path: %s q_path %s", aux_path, q_path);
-    if (q_path == NULL){
-      vars = clean_vars(body);
-      /* Se guarda en mini_path el path relativo que nos han mandado. */
-      mini_path = strdup(aux_path);
-    }
-    /* Si hay ? se cogen las variables de despues de la ? si es GET, y si es POST
-       del cuerpo. Despues se guardan en mini_path el path relativo de antes de la ? */
-    else{
-      if(!(*body)){ /* GET */
-        syslog(LOG_INFO, "q_path: %s", q_path);
+
+    /* Se comprueba si hay variables en la url. */
+    /* Si no hay, se guarda el path. */
+    if (q_path == NULL) mini_path = strdup(aux_path);
+    /* Si hay, se guarda el path sin las variables. */
+    else mini_path = strndup(aux_path, (int)((q_path - aux_path) * sizeof(char)));
+
+    /* Si el metodo es GET. */
+    if(strcmp(methods[n_met].name, "GET") == 0) {
+      /* Si hay variables las limpiamos.*/
+      if(q_path != NULL) {
         aux_q = strdup(q_path);
         vars = clean_vars(aux_q);
         free(aux_q);
       }
-      else /* POST */
-        vars = clean_vars(body);
-      mini_path = strndup(aux_path, (int)((q_path - aux_path) * sizeof(char)));
+    }
+    /* Si el metodo es POST.*/
+    else if(strcmp(methods[n_met].name, "POST") == 0){
+      /* Limpiamos el cuerpo. */
+      vars = clean_vars(body);
     }
     free(aux_path);
     syslog(LOG_INFO, "vars: %s", vars);
@@ -221,7 +258,7 @@ void GET_process(int connval, char* server, char *path, extension *ext, char *va
   /* Calcula la última fecha en la que fue modificado. */
   modified = get_mod_date(path);
   if (modified == NULL) {
-    send_error(connval, INTERNAL_SERVER, server); //TODO check si badrequest o internalerror
+    send_error(connval, INTERNAL_SERVER, server);
     free(date);
     return;
   }
@@ -298,7 +335,7 @@ void POST_process(int connval, char* server, char *path, extension *ext, char *v
   /* Calcula la última fecha en la que fue modificado. */
   modified = get_mod_date(path);
   if (modified == NULL) {
-    send_error(connval, INTERNAL_SERVER, server); //TODO check si badrequest o internalerror
+    send_error(connval, INTERNAL_SERVER, server);
     free(date);
     return;
   }
@@ -346,7 +383,7 @@ void OPTIONS_process(int connval, char* server, char *path, extension *ext, char
 */
 char* run_script(int connval, char* server, char *path, extension *ext, char *vars){
   FILE *fp;
-  char command[MAX_BUF]; //TODO 1000?
+  char command[MAX_BUF];
   char *ret;
   int len;
 

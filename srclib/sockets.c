@@ -1,5 +1,13 @@
 #include "sockets.h"
 
+#include <netinet/in.h>
+#include <syslog.h>
+#include <strings.h>
+#include <stdlib.h>
+#include <unistd.h>
+#include <stdio.h>
+#include <errno.h>
+
 /*
 * Funcion que crea un socket TCP/IP, lo liga al puerto y lo deja escuchando.
 * Recibe como parametros el puerto y numero maximo de clientes que pueden

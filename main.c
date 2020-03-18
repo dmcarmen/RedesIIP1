@@ -21,6 +21,7 @@ int main(int argc, char const *argv[]) {
   static long int max_clients = 0;
   static long int listen_port = 0;
   static char *server_signature = NULL;
+  static long int num_threads = 0;
   cfg_t *cfg;
 
   /* Lee el fichero de configuracion. */
@@ -29,6 +30,7 @@ int main(int argc, char const *argv[]) {
     CFG_SIMPLE_INT("max_clients", &max_clients),
     CFG_SIMPLE_INT("listen_port", &listen_port),
     CFG_SIMPLE_STR("server_signature", &server_signature),
+    CFG_SIMPLE_INT("num_threads", &num_threads),
     CFG_END()
   };
 
@@ -39,8 +41,8 @@ int main(int argc, char const *argv[]) {
     return 1;
   }
   cfg_free(cfg);
-  syslog(LOG_INFO, "Server_root: %s, server_signature: %s, max_clients: %ld, listen_ports: %ld",
-		  server_root, server_signature, max_clients, listen_port);
+  syslog(LOG_INFO, "Server_root: %s, server_signature: %s, max_clients: %ld, listen_ports: %ld, num_threads: %ld",
+		  server_root, server_signature, max_clients, listen_port, num_threads);
 
   /* Manejo de señales. Se bloquea SIGINT a todos los hilos y se atrapa SIGUSR1.*/
   /* Levanta el manejador vacio. */
@@ -76,7 +78,7 @@ int main(int argc, char const *argv[]) {
     return 1;
   }
   /* Se crean los hilos del pool estatico. */
-  pool = pool_create(sockval, server_signature, server_root);
+  pool = pool_create(sockval, server_signature, server_root, num_threads);
   if (pool == NULL) {
     syslog(LOG_ERR, "Error pool create");
     free(server_root);

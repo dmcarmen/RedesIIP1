@@ -1,5 +1,25 @@
 #include "pool.h"
 
+#include "sockets.h"
+#include "http.h"
+#include <stdio.h>
+#include <pthread.h>
+#include <string.h>
+#include <signal.h>
+#include <syslog.h>
+#include <unistd.h>
+
+/* Estructura de la pool. */
+struct pool_thread {
+  int num_threads;
+  int stop;
+  int sockval;
+  pthread_t *threads;
+  void *(*work_function)(void *);
+  char *server_signature;
+  char *server_root;
+};
+
 /*
 * Funcion que corre cada hilo de la pool. Se encarga de aceptar la conexion
 * procesar las peticiones HTTP que le lleguen y al terminar cerrar la conexion.
@@ -27,7 +47,7 @@ void * thread_accept(void * pool){
 /*
 * Funcion que inicializa la pool (la estructura y los hilos).
 */
-pool_thread * pool_create(int sockval, char* server_signature, char* server_root){
+pool_thread * pool_create(int sockval, char* server_signature, char* server_root, int num_threads){
   pool_thread *pool;
   int i, j;
 
@@ -37,7 +57,7 @@ pool_thread * pool_create(int sockval, char* server_signature, char* server_root
     syslog(LOG_ERR, "Error creating pool");
     return NULL;
   }
-  pool->num_threads = NUM_THREADS;
+  pool->num_threads = num_threads;
   pool->stop = 0;
   pool->sockval = sockval;
   pool->threads = (pthread_t *) malloc(sizeof(pthread_t) * pool->num_threads);
