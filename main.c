@@ -5,6 +5,9 @@
 #include <syslog.h>
 #include <unistd.h>
 
+/* Path que indica la localizacion del fichero server.conf. */
+#define PATH_CONF ""
+
 /*Manejador vacío para SIGINT y SIGUSR1.*/
 void manejador(int sig){}
 
@@ -35,7 +38,7 @@ int main(int argc, char const *argv[]) {
   };
 
   cfg = cfg_init(opts, 0);
-  if(cfg_parse(cfg, "server.conf") == CFG_PARSE_ERROR)
+  if(cfg_parse(cfg, PATH_CONF) == CFG_PARSE_ERROR)
   {
     syslog(LOG_ERR, "Error parsing server.conf");
     return 1;
@@ -53,11 +56,11 @@ int main(int argc, char const *argv[]) {
   /* Inicializa el conjunto de señales al conjunto vacio. */
   sigemptyset(&set);
   /* Aniade SIGINT. */
-  sigaddset(&set, SIGINT);
+  sigaddset(&set, SIGTERM);
   /* Bloqueo de las seniales del set. */
   pthread_sigmask(SIG_SETMASK, &set, &old_set);
   /* Asigna el manejador de SIGINT.*/
-  if (sigaction(SIGINT, &act, NULL) < 0) {
+  if (sigaction(SIGTERM, &act, NULL) < 0) {
     syslog(LOG_ERR, "Error sigaction");
     return 1;
   }
