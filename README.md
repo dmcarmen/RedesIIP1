@@ -6,10 +6,10 @@ Iris Álvarez Nieto y Carmen Díez Menéndez. Pareja 3.
 ### Compilación
 
 1. Añadir el path absoluto al archivo **server.conf** en **main.c** en el define `PATH_CONF`. Por ejemplo:
-```C
+```cpp
 #define PATH_CONF "/home/dmcarmen/Desktop/Redes2/practica1/server.conf"
 ```
-2. Añadir el path absoluto al root del server en server.conf. Por ejemplo:
+2. Añadir el path absoluto al root del server en **server.conf**. Por ejemplo:
 ```
 server_root = "/home/dmcarmen/Desktop/Redes2/practica1/www"
 ```
