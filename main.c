@@ -5,9 +5,7 @@
 #include <syslog.h>
 #include <unistd.h>
 
-/* Path que indica la localizacion del fichero server.conf. */
-#define PATH_CONF ""
-
+#define MAX_BUF 1000
 /*Manejador vacío para SIGINT y SIGUSR1.*/
 void manejador(int sig){}
 
@@ -26,6 +24,13 @@ int main(int argc, char const *argv[]) {
   static char *server_signature = NULL;
   static long int num_threads = 0;
   cfg_t *cfg;
+  char cwd[MAX_BUF];
+  char path_conf[MAX_BUF];
+  char server_root_complete[MAX_BUF];
+
+  /* Se halla el directorio de trabajo. */
+  getcwd(cwd, sizeof(cwd));
+  syslog(LOG_INFO, "CWD: %s", cwd);
 
   /* Lee el fichero de configuracion. */
   cfg_opt_t opts[] = {
@@ -38,14 +43,18 @@ int main(int argc, char const *argv[]) {
   };
 
   cfg = cfg_init(opts, 0);
-  if(cfg_parse(cfg, PATH_CONF) == CFG_PARSE_ERROR)
+  /* Se obtiene la ruta a server.conf. */
+  sprintf(path_conf,"%s/server.conf",cwd);
+  if(cfg_parse(cfg, path_conf) == CFG_PARSE_ERROR)
   {
     syslog(LOG_ERR, "Error parsing server.conf");
     return 1;
   }
   cfg_free(cfg);
+  /* Se obtiene la ruta completa al server. */
+  sprintf(server_root_complete, "%s%s", cwd, server_root);
   syslog(LOG_INFO, "Server_root: %s, server_signature: %s, max_clients: %ld, listen_ports: %ld, num_threads: %ld",
-		  server_root, server_signature, max_clients, listen_port, num_threads);
+		  server_root_complete, server_signature, max_clients, listen_port, num_threads);
 
   /* Manejo de señales. Se bloquea SIGINT a todos los hilos y se atrapa SIGUSR1.*/
   /* Levanta el manejador vacio. */
@@ -81,7 +90,7 @@ int main(int argc, char const *argv[]) {
     return 1;
   }
   /* Se crean los hilos del pool estatico. */
-  pool = pool_create(sockval, server_signature, server_root, num_threads);
+  pool = pool_create(sockval, server_signature, server_root_complete, num_threads);
   if (pool == NULL) {
     syslog(LOG_ERR, "Error pool create");
     free(server_root);

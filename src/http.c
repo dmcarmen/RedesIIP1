@@ -120,6 +120,15 @@ void process_petitions(int connval, char *server, char* server_root, int * stop)
     * bytes leidos por phr_parse_request. */
     if (pret > 1)
       body = buf + pret;
+
+    /* Comprueba que la conexion se mantiene. */
+    for(int i=0; i < (int) num_headers; i++){
+      if(strncmp(headers[i].name, "Connection", headers[i].name_len) == 0) {
+        /* Si no se mantiene, sale de la funcion. */
+        if(strncmp(headers[i].value, "close", headers[i].value_len) == 0) return;
+      }
+    }
+
     syslog(LOG_INFO, "Body: %s", body);
 
     /* Se comprueba que se da soporte al metodo. */
