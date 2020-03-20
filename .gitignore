@@ -2,6 +2,6 @@
 *.a
 main
 nbproject
-www/
+media/
 ./obj
 ./lib
