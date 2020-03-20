@@ -1,6 +1,9 @@
 # Práctica 1 - Servidor Web.
 Iris Álvarez Nieto y Carmen Díez Menéndez. Pareja 3.
 
+## Decisiones de diseño y funcionamiento
+
+Incluimos todo esto en la [Wiki](../wikis/Práctica-1:-Servidor-Web).
 
 ## Instrucciones para ejecutar el servidor
 ### Compilación
