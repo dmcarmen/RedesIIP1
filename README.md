@@ -1,16 +1,25 @@
 # Práctica 1 - Servidor Web.
 Iris Álvarez Nieto y Carmen Díez Menéndez. Pareja 3.
 
+## Decisiones de diseño y funcionamiento
 
-## Instrucciones
-### Instrucciones básicas para compilar:
+Se incluyen en la [Wiki](../wikis/Práctica-1:-Servidor-Web).
 
-1. Añadir el path absoluto al archivo server.conf en el define PATH_CONF del main.c.
-2. make en la carpeta principal
-3. Añadir el path absoluto al root (server_root) del server en server.conf.
+## Instrucciones para ejecutar el servidor
+### Compilación
+
+1. Añadir el path absoluto al archivo **server.conf** en **main.c** en el define `PATH_CONF`. Por ejemplo:
+```c
+#define PATH_CONF "/home/dmcarmen/Desktop/Redes2/practica1/server.conf"
+```
+2. Añadir el path absoluto al root del server en **server.conf**. Por ejemplo:
+```
+server_root = "/home/dmcarmen/Desktop/Redes2/practica1/www"
+```
+3. `make` en la carpeta principal.
 
 ### Preparar el proceso daemon del sistema
-Creamos en /etc/systemd/system/ un archivo .service como este, modificando User= y ExecStart=.
+Creamos en **/etc/systemd/system/** un archivo **.service** como este, modificando `User` y `ExecStart`.
 ```console
 foo@bar:~$ sudo cat /etc/systemd/system/server.service
 [Unit]
@@ -26,8 +35,6 @@ ExecStart=/home/dmcarmen/Desktop/Redes2/practica1/main
 
 [Install]
 WantedBy=multi-user.target
-sudo systemctl start server
-sudo systemctl stop server
 ```
 
 ### Correr y parar el proceso
