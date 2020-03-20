@@ -6,20 +6,10 @@ Iris Álvarez Nieto y Carmen Díez Menéndez. Pareja 3.
 Se incluyen en la [Wiki](../wikis/Práctica-1:-Servidor-Web).
 
 ## Instrucciones para ejecutar el servidor
-### Compilación
+### Compilación y demonización del proceso
 
-1. Añadir el path absoluto al archivo **server.conf** en **main.c** en el define `PATH_CONF`. Por ejemplo:
-```c
-#define PATH_CONF "/home/dmcarmen/Desktop/Redes2/practica1/server.conf"
-```
-2. Añadir el path absoluto al root del server en **server.conf**. Por ejemplo:
-```
-server_root = "/home/dmcarmen/Desktop/Redes2/practica1/www"
-```
-3. `make` en la carpeta principal.
-
-### Preparar el proceso daemon del sistema
-Creamos en **/etc/systemd/system/** un archivo **.service** como este, modificando `User` y `ExecStart`.
+1. `make` en la carpeta principal.
+2. Crear en **/etc/systemd/system/** un archivo **.service** como este, modificando `User`, `ExecStart` y `WorkingDirectory`.
 ```console
 foo@bar:~$ sudo cat /etc/systemd/system/server.service
 [Unit]
@@ -32,12 +22,13 @@ Restart=on-failure
 RestartSec=1
 User=dmcarmen
 ExecStart=/home/dmcarmen/Desktop/Redes2/practica1/main
+WorkingDirectory=/home/dmcarmen/Desktop/Redes2/practica1
 
 [Install]
 WantedBy=multi-user.target
 ```
 
-### Correr y parar el proceso
+3. Correr el proceso y pararlo eventualmente.
 ```console
 foo@bar:~$ sudo systemctl start server
 foo@bar:~$ sudo systemctl stop server
