@@ -8,6 +8,7 @@ Se incluyen en la [Wiki](../wikis/Práctica-1:-Servidor-Web).
 ## Instrucciones para ejecutar el servidor
 ### Compilación y demonización del proceso
 
+1. Añadir la carpeta **media** a **www** del [zip proporcionado](https://moodle.uam.es/mod/resource/view.php?id=1318802).
 1. `make` en la carpeta principal.
 2. Crear en **/etc/systemd/system/** un archivo **.service** como este, modificando `User`, `ExecStart` y `WorkingDirectory`.
 ```console
