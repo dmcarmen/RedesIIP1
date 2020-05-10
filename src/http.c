@@ -172,7 +172,7 @@ void process_petitions(int connval, char *server, char* server_root, int * stop)
       vars = clean_vars(body);
     }
     free(aux_path);
-    syslog(LOG_INFO, "vars: %s", vars);
+    if(vars) syslog(LOG_INFO, "vars: %s", vars);
     syslog(LOG_INFO, "mini_path: %s", mini_path);
 
     /* Si el path relativo es / se refiere al index. */
@@ -210,6 +210,7 @@ void process_petitions(int connval, char *server, char* server_root, int * stop)
     /* Se procesa la peticion con la funcion del metodo correspondiente. */
     funcion_procesa(connval, server,total_path, &extensions[n_ext], vars);
     free(vars);
+    vars = NULL;
     free(mini_path);
   }
   return;

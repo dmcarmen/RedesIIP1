@@ -30,7 +30,6 @@ int main(int argc, char const *argv[]) {
 
   /* Se halla el directorio de trabajo. */
   getcwd(cwd, sizeof(cwd));
-  syslog(LOG_INFO, "CWD: %s", cwd);
 
   /* Lee el fichero de configuracion. */
   cfg_opt_t opts[] = {
@@ -53,6 +52,9 @@ int main(int argc, char const *argv[]) {
   cfg_free(cfg);
   /* Se obtiene la ruta completa al server. */
   sprintf(server_root_complete, "%s%s", cwd, server_root);
+
+  /*Configuramos de inicio syslog */
+  openlog(server_signature, 0, 0);
   syslog(LOG_INFO, "Server_root: %s, server_signature: %s, max_clients: %ld, listen_ports: %ld, num_threads: %ld",
 		  server_root_complete, server_signature, max_clients, listen_port, num_threads);
 
