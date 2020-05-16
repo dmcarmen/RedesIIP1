@@ -71,9 +71,16 @@ method methods[] = {
 };
 
 /*
-* Funcion que procesa todas las peticiones que van llegando a una misma conexion.
-* Solo para si hay un error grave o si recibe la senial para terminar (en este
-* caso termina lo que estuviera haciendo antes de irse).
+* process_petitions
+* Descripcion: Funcion que procesa todas las peticiones que van llegando a una misma conexion.
+*   Solo para si hay un error grave o si recibe la senial para terminar (en este
+*   caso termina lo que estuviera haciendo antes de irse).
+* Argumentos:
+*   - int connval: descriptor del socket
+*   - char* server: server signature
+*   - char* server_root: path donde se encuentran los archivos del server
+*   - int* stop: flag de parada del programa
+* Retorno: void
 */
 void process_petitions(int connval, char *server, char* server_root, int * stop){
   char buf[4096], *method = NULL, *path = NULL, *body = NULL;
@@ -217,7 +224,13 @@ void process_petitions(int connval, char *server, char* server_root, int * stop)
 }
 
 /*
-* Funcion que se encarga de enviar respuestas de error al cliente.
+* send_error
+* Descripcion: Funcion que se encarga de enviar respuestas de error al cliente.
+* Argumentos:
+*   - int connval: descriptor del socket
+*   - int error: error a enviar
+*   - char* server: server signature
+* Retorno: void
 */
 void send_error(int connval, int error, char *server) {
   char res[MAX_BUF], *date;
@@ -250,7 +263,15 @@ void send_error(int connval, int error, char *server) {
 }
 
 /*
-* Funcion que procesa las peticiones de tipo GET.
+* GET_process
+* Descripcion: Funcion que procesa las peticiones de tipo GET.
+* Argumentos:
+*   - int connval: descriptor del socket
+*   - char* server: server signature
+*   - char* path: path del archivo pedido
+*   - extension *ext: extension del archivo
+*   - char *vars: variables de tipo POST o GET ya separadas
+* Retorno: void
 */
 void GET_process(int connval, char* server, char *path, extension *ext, char *vars) {
   int fd;
@@ -329,7 +350,15 @@ void GET_process(int connval, char* server, char *path, extension *ext, char *va
 }
 
 /*
-* Funcion que procesa las peticiones de tipo POST.
+* POST_process
+* Descripcion: Funcion que procesa las peticiones de tipo POST.
+* Argumentos:
+*   - int connval: descriptor del socket
+*   - char* server: server signature
+*   - char* path: path del archivo pedido
+*   - extension *ext: extension del archivo
+*   - char *vars: variables de tipo POST o GET ya separadas
+* Retorno: void
 */
 void POST_process(int connval, char* server, char *path, extension *ext, char *vars){
   char *answer, *date, res[MAX_BUF], *modified;
@@ -370,7 +399,15 @@ void POST_process(int connval, char* server, char *path, extension *ext, char *v
 }
 
 /*
-* Funcion que procesa las peticiones de tipo OPTIONS.
+* OPTIONS_process
+* Descripcion: Funcion que procesa las peticiones de tipo OPTIONS.
+* Argumentos:
+*   - int connval: descriptor del socket
+*   - char* server: server signature
+*   - char* path: path del archivo pedido
+*   - extension *ext: extension del archivo
+*   - char *vars: variables de tipo POST o GET ya separadas
+* Retorno: void
 */
 void OPTIONS_process(int connval, char* server, char *path, extension *ext, char *vars){
   char *date, res[MAX_BUF];
@@ -389,7 +426,15 @@ void OPTIONS_process(int connval, char* server, char *path, extension *ext, char
 }
 
 /*
-* Funcion que corre un script especificado y devuelve su respuesta.
+* run_script
+* Descripcion: Funcion que corre un script especificado y devuelve su respuesta.
+* Argumentos:
+*   - int connval: descriptor del socket
+*   - char* server: server signature
+*   - char* path: path del archivo pedido
+*   - extension *ext: extension del archivo
+*   - char *vars: variables de tipo POST o GET ya separadas
+* Retorno: char* respuesta del script
 */
 char* run_script(int connval, char* server, char *path, extension *ext, char *vars){
   FILE *fp;
@@ -444,7 +489,10 @@ char* run_script(int connval, char* server, char *path, extension *ext, char *va
 }
 
 /*
-* Funcion que devuelve la fecha actual en el formato para las cabeceras HTTP.
+* get_date
+* Descripcion: Funcion que devuelve la fecha actual en el formato para las cabeceras HTTP.
+* Argumentos:
+* Retorno: char* fecha en formato HTTP
 */
 char * get_date(){
   time_t now;
@@ -462,8 +510,12 @@ char * get_date(){
 }
 
 /*
-* Funcion que devuelve la fecha de ultima modificacion de un fichero
-* en el formato para las cabeceras HTTP.
+* get_mod_date
+* Descripcion: Funcion que devuelve la fecha de ultima modificacion de un fichero
+*   en el formato para las cabeceras HTTP.
+* Argumentos:
+*   - char* path: path del archivo
+* Retorno: char* fecha de modifcacion en formato HTTP
 */
 char * get_mod_date(char * path){
   struct stat buf;
@@ -481,8 +533,12 @@ char * get_mod_date(char * path){
 }
 
 /*
-* Funcion que coge las variables en el formato var1=valor1&var2=valor2... y las
-* devuelve valor1 valor2... separadas por espacios para usarlas en los scripts.
+* clean_vars
+* Descripcion: Funcion que coge las variables en el formato var1=valor1&var2=valor2... y las
+*   devuelve valor1 valor2... separadas por espacios para usarlas en los scripts.
+* Argumentos:
+*   - char* body: variables tal cual se reciben en la peticion
+* Retorno: char* variables separadas
 */
 char* clean_vars(char *body)
 {
