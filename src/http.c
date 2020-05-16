@@ -383,7 +383,7 @@ void OPTIONS_process(int connval, char* server, char *path, extension *ext, char
   }
 
   /* Envia el mensaje con los metodos implementados. */
-  sprintf(res,"HTTP/1.1 200 OK\r\nDate: %s\r\nServer: %s\r\nAllow: GET, POST, OPTIONS\r\nConnection: keep-alive\r\n\r\n",date,server);
+  sprintf(res,"HTTP/1.1 204 No Content\r\nDate: %s\r\nServer: %s\r\nAllow: GET, POST, OPTIONS\r\nConnection: keep-alive\r\n\r\n",date,server);
   send(connval, res, strlen(res), 0);
   free(date);
 }
