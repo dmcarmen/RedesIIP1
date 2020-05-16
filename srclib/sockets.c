@@ -9,10 +9,12 @@
 #include <errno.h>
 
 /*
-* Funcion que crea un socket TCP/IP, lo liga al puerto y lo deja escuchando.
-* Recibe como parametros el puerto y numero maximo de clientes que pueden
-* estar en la cola. Devuelve el descriptor del socket. En caso de error
-* devuelve -1.
+* socket_server_ini
+* Descripcion: Funcion que crea un socket TCP/IP, lo liga al puerto y lo deja escuchando.
+* Argumentos:
+*   - int listen_port: puerto de escucha
+*   - int max_clients: numero maximo de clientes que pueden estar en la cola
+* Retorno: int descriptor del socket, en caso de error -1
 */
 int socket_server_ini(int listen_port, int max_clients)
 {
@@ -61,7 +63,12 @@ int socket_server_ini(int listen_port, int max_clients)
 }
 
 /*
-* Funcion que acepta la conexion de un cliente.
+* socket_accept
+* Descripcion: Funcion que acepta la conexion de un cliente.
+* Argumentos:
+*   - int sockval: descriptor del socket
+* Retorno: int descriptor del socket connval (una vez aceptada la conexion),
+*   -1 en caso de error, -2 si se sale por una interrupcion
 */
 int socket_accept(int sockval)
 {

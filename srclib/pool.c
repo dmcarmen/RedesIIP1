@@ -21,8 +21,12 @@ struct pool_thread {
 };
 
 /*
-* Funcion que corre cada hilo de la pool. Se encarga de aceptar la conexion
-* procesar las peticiones HTTP que le lleguen y al terminar cerrar la conexion.
+* thread_accept
+* Descripcion: Funcion que corre cada hilo de la pool. Se encarga de aceptar la conexion
+*   procesar las peticiones HTTP que le lleguen y al terminar cerrar la conexion.
+* Argumentos:
+*   - void* pool: estructura de la pool de threads
+* Retorno: void*
 */
 void * thread_accept(void * pool){
   pool_thread *p = (pool_thread *)pool;
@@ -45,7 +49,14 @@ void * thread_accept(void * pool){
 }
 
 /*
-* Funcion que inicializa la pool (la estructura y los hilos).
+* pool_create
+* Descripcion: Funcion que inicializa la pool (la estructura y los hilos).
+* Argumentos:
+*   - int sockval: descriptor del socket
+*   - char* server_signature: nombre del servidor
+*   - char* server_root: path donde se encuentran los archivos del server
+*   - int num_threads: numero de hilos a crear
+* Retorno: pool_thread* estrutura pool de hilos
 */
 pool_thread * pool_create(int sockval, char* server_signature, char* server_root, int num_threads){
   pool_thread *pool;
@@ -93,7 +104,11 @@ pool_thread * pool_create(int sockval, char* server_signature, char* server_root
 }
 
 /*
-* Funcion que libera los recursos usados para la pool.
+* pool_free
+* Descripcion: Funcion que libera los recursos usados para la pool.
+* Argumentos:
+*   - pool_thread* pool: estructura de la pool de threads
+* Retorno: void
 */
 void pool_free(pool_thread * pool) {
   int i;

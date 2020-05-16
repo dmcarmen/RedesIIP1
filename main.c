@@ -10,7 +10,12 @@
 void manejador(int sig){}
 
 /*
-* Funcion principal del servidor web.
+* main
+* Descripcion: Funcion principal del servidor web.
+* Argumentos:
+*   - int argc: numero de args
+*   - char const *argv[]: argumentos
+* Retorno: int 0 si todo es correct, 1 en caso de error
 */
 int main(int argc, char const *argv[]) {
   int sockval;
