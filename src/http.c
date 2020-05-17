@@ -45,21 +45,25 @@ char* run_script(int connval, char* server, char *path, extension *ext, char *va
 char* clean_vars(char *body);
 
 /* Extensiones implementadas. Es necesario mantener acorde la constante NUM_EXTENSIONS. */
-#define NUM_EXTENSIONS 13
+#define NUM_EXTENSIONS 17
 extension extensions[] = {
-  {"txt", "text/plain"},
+  {"txt","text/plain"},
   {"html","text/html"},
   {"htm","text/html"},
   {"gif","image/gif"},
+  {"png","image/png"},
   {"jpeg","image/jpeg"},
   {"jpg","image/jpg"},
+  {"ico","image/x-icon"},
   {"mpeg","video/mpeg"},
   {"mpg","video/mpeg"},
+  {"mp4","video/mp4"},
   {"doc","application/msword"},
   {"docx","application/msword"},
   {"pdf","application/pdf"},
-  {"py", "text/plain"},
-  {"php", "text/plain"}
+  {"zip","application/zip"},
+  {"py","script"},
+  {"php","script"}
 };
 
 /* Metodos implementados. Es necesario mantener acorde la constante NUM_METHODS. */
